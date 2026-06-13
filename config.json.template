@@ -1,0 +1,5 @@
+{
+    "install_root": "INSTALL_ROOT_PLACEHOLDER",
+    "cookie_file": "INSTALL_ROOT_PLACEHOLDER/cookies.txt",
+    "rustypipe_bg_bin": "INSTALL_ROOT_PLACEHOLDER/rustypipe-botguard.exe"
+}
