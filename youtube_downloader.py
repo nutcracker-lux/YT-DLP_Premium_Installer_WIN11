@@ -171,7 +171,9 @@ class DownloadEngine:
         ff = shutil.which('ffmpeg')
         if ff:
             return ff
+        root = Path(self.config.get('install_root', str(SCRIPT_DIR)))
         candidates = [
+            str(root / 'ffmpeg.exe'),
             r'C:\ProgramData\chocolatey\bin\ffmpeg.exe',
             r'C:\Program Files\ffmpeg\bin\ffmpeg.exe',
             r'C:\ffmpeg\bin\ffmpeg.exe',
