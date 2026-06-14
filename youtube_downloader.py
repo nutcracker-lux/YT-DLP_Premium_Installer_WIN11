@@ -7,6 +7,14 @@ A GUI application for YouTube Music Premium users to download
 high-quality audio (256kbps AAC .m4a or AIFF fallback).
 """
 
+#TODO: add uninstall.bat that uninstalls yt-dlp and ffmpeg with:
+#   pip uninstall yt-dlp yt-dlp-get-pot-rustypipe -y
+#   winget uninstall --id Gyan.FFmpeg
+#   pip uninstall yt-dlp-get-pot-rustypipe yt-dlp -y
+#then runs where ffmpeg and where yt-dlp to check. if failed, popup for user
+
+#TODO: make create folder actually always be inside yt-dlp folder inside directory.
+
 import os
 import sys
 import re
@@ -616,17 +624,53 @@ class Application(tk.Tk):
         webbrowser.open(COOKIE_EXTENSION_URL)
 
     def _show_url_help(self):
-        msg = (
-            "How to get playlist URLs:\n\n"
+        win = tk.Toplevel(self)
+        win.title("Getting URLs")
+        win.geometry("580x480")
+        win.resizable(False, False)
+        win.transient(self)
+        win.grab_set()
+
+        ttk.Label(win, text="How to get playlist URLs:", font=('Segoe UI', 11, 'bold'),
+                  wraplength=540).pack(pady=(14, 4))
+
+        steps = (
             "1. Open your YouTube Music playlist in Chrome\n"
             "2. Scroll to the bottom so all tracks are loaded\n"
-            "3. Press F12 → go to Console tab\n"
-            "4. Paste this script and press Enter:\n\n"
-            f"{F12_SCRIPT}\n\n"
-            "5. Copy all URLs, paste them into a .txt file\n"
+            "3. Press F12 \u2192 go to Console tab\n"
+            "4. Copy the script below, paste it into the Console, press Enter\n"
+            "5. Copy all returned URLs into a .txt file (one per line)\n"
             "6. Save the file and select it in the app"
         )
-        messagebox.showinfo("Getting URLs", msg)
+        ttk.Label(win, text=steps, wraplength=540, justify='left',
+                  font=('Segoe UI', 10)).pack(pady=(0, 10))
+
+        ttk.Label(win, text="Script to paste in Console:", font=('Segoe UI', 10, 'bold'),
+                  wraplength=540).pack(pady=(0, 4))
+
+        frame = ttk.Frame(win)
+        frame.pack(fill='both', expand=True, padx=20, pady=(0, 10))
+
+        text = tk.Text(frame, wrap='word', font=('Consolas', 9), height=7,
+                       relief='solid', borderwidth=1, bg='#f5f5f5')
+        text.insert('1.0', F12_SCRIPT)
+        text.configure(state='disabled')
+        text.pack(fill='both', expand=True, side='left')
+
+        scroll = ttk.Scrollbar(frame, orient='vertical', command=text.yview)
+        scroll.pack(side='right', fill='y')
+        text.configure(yscrollcommand=scroll.set)
+
+        btn_f = ttk.Frame(win)
+        btn_f.pack(pady=(0, 14))
+
+        def _copy():
+            self.clipboard_clear()
+            self.clipboard_append(F12_SCRIPT)
+            self.update()
+
+        ttk.Button(btn_f, text="Copy Script", command=_copy).pack(side='left', padx=6)
+        ttk.Button(btn_f, text="Close", command=win.destroy).pack(side='left', padx=6)
 
     def _start_download(self):
         mode = self.mode_var.get()
