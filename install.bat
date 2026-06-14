@@ -1,6 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 
+set "DEBUG_LOG=%TEMP%\ytdlp_install_debug.log"
+echo %DATE% %TIME% - Installer started > "%DEBUG_LOG%"
+
 title YouTube Downloader - Windows Setup
 
 color 0B
@@ -30,6 +33,7 @@ if %ERRORLEVEL% neq 0 (
     echo   https://www.python.org/downloads/
     echo   MAKE SURE TO CHECK "Add Python to PATH" during installation!
     echo.
+    echo %DATE% %TIME% - ERROR: winget not available >> "%DEBUG_LOG%"
     pause
     exit /b 1
 )
@@ -65,6 +69,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 :python_found
+echo %DATE% %TIME% - Python check passed >> "%DEBUG_LOG%"
 python --version 2>&1 | findstr "3." >nul
 if %ERRORLEVEL% neq 0 (
     echo   WARNING: Python 3 not detected. Your default Python may be version 2.
@@ -81,33 +86,43 @@ echo.
 :: ===========================================================================
 echo [2/5] Choose installation folder...
 
-set "DEFAULT_DIR=%USERPROFILE%\YouTubeDownloader"
-echo Default: %DEFAULT_DIR%
+set "DEFAULT_NAME=YouTubeDownloader"
+echo Enter a folder name for the installation.
+echo It will be created inside your user folder: %USERPROFILE%
 echo.
-set /p "INSTALL_DIR=Enter path (or press Enter for default): "
-if "%INSTALL_DIR%"=="" set "INSTALL_DIR=%DEFAULT_DIR%"
+echo Default: %DEFAULT_NAME%
+echo.
+set /p "INSTALL_NAME=Folder name (or press Enter for default): "
+if "%INSTALL_NAME%"=="" set "INSTALL_NAME=%DEFAULT_NAME%"
+
+set "INSTALL_DIR=%USERPROFILE%\%INSTALL_NAME%"
 
 if not exist "%INSTALL_DIR%" (
     mkdir "%INSTALL_DIR%" 2>nul
-    if !ERRORLEVEL! neq 0 (
-        echo ERROR: Could not create folder: %INSTALL_DIR%
-        pause
-        exit /b 1
-    )
+)
+if not exist "%INSTALL_DIR%" (
+    echo ERROR: Could not create folder: %INSTALL_DIR%
+    echo Check permissions for %USERPROFILE%
+    pause
+    exit /b 1
 )
 echo   Install folder: %INSTALL_DIR%
+echo %DATE% %TIME% - Section 2 done, folder=%INSTALL_DIR% >> "%DEBUG_LOG%"
 echo.
 
 :: ===========================================================================
 :: SECTION 3: Copy app files
 :: ===========================================================================
+echo %DATE% %TIME% - Starting Section 3 >> "%DEBUG_LOG%"
 echo [3/5] Copying application files...
 
 copy /Y "%SCRIPT_DIR%\youtube_downloader.py" "%INSTALL_DIR%\" >nul 2>&1
+if !ERRORLEVEL! neq 0 echo WARNING: copy youtube_downloader.py failed >> "%DEBUG_LOG%"
 echo   - youtube_downloader.py
 
 if exist "%SCRIPT_DIR%\yt-dlp premium.ico" (
     copy /Y "%SCRIPT_DIR%\yt-dlp premium.ico" "%INSTALL_DIR%\" >nul 2>&1
+    if !ERRORLEVEL! neq 0 echo WARNING: copy .ico failed >> "%DEBUG_LOG%"
     echo   - yt-dlp premium.ico
 )
 
@@ -118,146 +133,87 @@ for %%F in ("%SCRIPT_DIR%\rustypipe-botguard-*.zip") do (
 )
 if defined RUSTYPIPE_ZIP (
     copy /Y "!RUSTYPIPE_ZIP!" "%INSTALL_DIR%\" >nul 2>&1
+    if !ERRORLEVEL! neq 0 echo WARNING: copy rustypipe zip failed >> "%DEBUG_LOG%"
     for %%F in ("!RUSTYPIPE_ZIP!") do echo   - %%~nxF
 )
 
 echo.
+echo %DATE% %TIME% - Section 3 done >> "%DEBUG_LOG%"
 
 :: ===========================================================================
 :: SECTION 4: Install dependencies (ffmpeg, yt-dlp, rustypipe-botguard)
 :: ===========================================================================
+echo %DATE% %TIME% - Starting Section 4 >> "%DEBUG_LOG%"
 echo [4/5] Installing dependencies...
 
 :: --- ffmpeg ---
 echo   Checking ffmpeg...
 where ffmpeg >nul 2>nul
 if %ERRORLEVEL% equ 0 (
-    for /f "tokens=*" %%F in ('where ffmpeg') do set "FFMPEG_PATH=%%F"
-    echo     ffmpeg found: !FFMPEG_PATH!
-) else (
-    echo     ffmpeg not found. Attempting to install automatically...
-
-    :: Method 1: winget
-    where winget >nul 2>nul
-    if !ERRORLEVEL! equ 0 (
-        echo     Trying via winget...
-        winget install --id Gyan.FFmpeg --silent --accept-package-agreements 2>&1 | findstr /i "success" >nul
-        if !ERRORLEVEL! equ 0 goto :ffmpeg_done
-        winget install --id ffmpeg --silent --accept-package-agreements 2>&1 | findstr /i "success" >nul
-        if !ERRORLEVEL! equ 0 goto :ffmpeg_done
-    )
-
-    :: Method 2: Direct download of ffmpeg portable
-    echo     Downloading ffmpeg portable (via gyan.dev, ~70 MB)...
-    echo     This may take a moment...
-    powershell -Command "& {
-        $wc = New-Object System.Net.WebClient;
-        $wc.Headers['User-Agent'] = 'YouTube-Downloader-Installer';
-        $url = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';
-        $zip = \"%TEMP%\ffmpeg.zip\";
-        try {
-            Write-Host '    Downloading...';
-            $wc.DownloadFile($url, $zip);
-            Write-Host '    Extracting to %INSTALL_DIR%...';
-            Expand-Archive -Path $zip -DestinationPath \"%TEMP%\ffmpeg_extract\" -Force;
-            $ffmpegDir = Get-ChildItem -Path \"%TEMP%\ffmpeg_extract\" -Directory | Select-Object -First 1;
-            if ($ffmpegDir) {
-                Copy-Item \"$($ffmpegDir.FullName)\ffmpeg.exe\" \"%INSTALL_DIR%\ffmpeg.exe\" -Force;
-                Remove-Item \"%TEMP%\ffmpeg_extract\" -Recurse -Force;
-                Write-Host '    ffmpeg.exe installed in app folder.';
-            }
-            Remove-Item $zip -Force;
-        } catch {
-            Write-Host '    Download failed: ' + $_.Exception.Message;
-        }
-    }"
-
-    if exist "%INSTALL_DIR%\ffmpeg.exe" (
-        set "FFMPEG_PATH=%INSTALL_DIR%\ffmpeg.exe"
-        set "PATH=%INSTALL_DIR%;%PATH%"
-    ) else (
-        echo     WARNING: Could not install ffmpeg automatically.
-        echo     Download manually from: https://ffmpeg.org/download.html
-        echo     Make sure ffmpeg.exe is in PATH or place it in %INSTALL_DIR%
-    )
-
-    :ffmpeg_done
-    echo     ffmpeg: OK
+    echo     ffmpeg: found in PATH
+    goto :ffmpeg_done
 )
+echo     ffmpeg: installing via winget...
+winget install --id Gyan.FFmpeg --silent --accept-package-agreements --accept-source-agreements
+set "WINGET_EXIT=%ERRORLEVEL%"
+for /f "skip=2 tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do if not "%%B"=="" set "PATH=%%B;%PATH%"
+for /f "skip=2 tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do if not "%%B"=="" set "PATH=%%B;%PATH%"
+if %WINGET_EXIT% equ 0 (
+    echo     ffmpeg: installed OK
+) else (
+    echo     ffmpeg: install failed
+)
+:ffmpeg_done
+echo %DATE% %TIME% - ffmpeg section done >> "%DEBUG_LOG%"
 
 :: --- rustypipe-botguard ---
 echo   Checking rustypipe-botguard...
-if not exist "%INSTALL_DIR%\rustypipe-botguard.exe" (
-    set "RUSTYPIPE_ZIP_FILE="
-    for /f "delims=" %%F in ('dir /b "%INSTALL_DIR%\rustypipe-botguard-*.zip" 2^>nul') do set "RUSTYPIPE_ZIP_FILE=%INSTALL_DIR%\%%F"
-    
-    if not defined RUSTYPIPE_ZIP_FILE (
-        for /f "delims=" %%F in ('dir /b "%SCRIPT_DIR%\rustypipe-botguard-*.zip" 2^>nul') do set "RUSTYPIPE_ZIP_FILE=%SCRIPT_DIR%\%%F"
-        if defined RUSTYPIPE_ZIP_FILE (
-            echo     Found in source: !RUSTYPIPE_ZIP_FILE!
-            copy /Y "!RUSTYPIPE_ZIP_FILE!" "%INSTALL_DIR%\" >nul 2>&1
-            for /f "delims=" %%F in ('dir /b "%INSTALL_DIR%\rustypipe-botguard-*.zip" 2^>nul') do set "RUSTYPIPE_ZIP_FILE=%INSTALL_DIR%\%%F"
-        )
-    )
-    
-    if defined RUSTYPIPE_ZIP_FILE (
-        echo     Found: !RUSTYPIPE_ZIP_FILE!
-        echo     Extracting rustypipe-botguard...
-        powershell -Command "Expand-Archive -Path '!RUSTYPIPE_ZIP_FILE!' -DestinationPath '%INSTALL_DIR%' -Force"
-        del "!RUSTYPIPE_ZIP_FILE!" 2>nul
-    )
-    
-    if not exist "%INSTALL_DIR%\rustypipe-botguard.exe" (
-        for /r "%INSTALL_DIR%" %%F in (rustypipe-botguard.exe) do (
-            if exist "%%F" copy /Y "%%F" "%INSTALL_DIR%\" >nul
-        )
-    )
-    
-    if exist "%INSTALL_DIR%\rustypipe-botguard.exe" (
-        echo     rustypipe-botguard.exe installed.
-    ) else (
-        echo     No local zip found. Downloading rustypipe-botguard (~16 MB)...
-        powershell -Command "& {
-            $wc = New-Object System.Net.WebClient;
-            $wc.Headers['User-Agent'] = 'YouTube-Downloader-Installer';
-            $url = 'https://codeberg.org/ThetaDev/rustypipe-botguard/releases/download/v0.1.2/rustypipe-botguard-v0.1.2-x86_64-pc-windows-msvc.zip';
-            $zip = \"%TEMP%\rustypipe-botguard.zip\";
-            try {
-                $wc.DownloadFile($url, $zip);
-                Expand-Archive -Path $zip -DestinationPath \"%INSTALL_DIR%\" -Force;
-                Remove-Item $zip -Force;
-                Write-Host '    rustypipe-botguard.exe installed.';
-            } catch {
-                Write-Host '    Download failed: ' + $_.Exception.Message;
-                exit 1
-            }
-        }"
-        if !ERRORLEVEL! neq 0 (
-            echo     WARNING: Could not get rustypipe-botguard.
-            echo     Download manually from: https://codeberg.org/ThetaDev/rustypipe-botguard/releases
-        )
-    )
-) else (
-    echo     rustypipe-botguard.exe already present.
+if exist "%INSTALL_DIR%\rustypipe-botguard.exe" (
+    echo     rustypipe-botguard.exe: OK
+    goto :rustypipe_done
 )
+
+echo     rustypipe-botguard.exe: extracting shipped zip...
+set "RUSTYPE_SHIPPED="
+for %%F in ("%INSTALL_DIR%\rustypipe-botguard-*.zip") do set "RUSTYPE_SHIPPED=%%F"
+if defined RUSTYPE_SHIPPED (
+    tar -xf "!RUSTYPE_SHIPPED!" -C "%INSTALL_DIR%"
+)
+if exist "%INSTALL_DIR%\rustypipe-botguard.exe" (
+    echo     rustypipe-botguard: OK
+) else (
+    echo     rustypipe-botguard: FAILED
+)
+:rustypipe_done
+echo %DATE% %TIME% - rustypipe section done >> "%DEBUG_LOG%"
 
 :: --- Python packages ---
 echo   Installing/upgrading Python packages...
 python -m pip install --upgrade pip --quiet 2>&1 | findstr /v "^$" >nul
 
 echo     Installing yt-dlp...
-python -m pip install --upgrade yt-dlp --quiet
-if %ERRORLEVEL% equ 0 ( echo     yt-dlp: OK ) else ( echo     yt-dlp: FAILED )
+python -m pip install --upgrade yt-dlp
+if not errorlevel 1 ( echo     yt-dlp: OK ) else ( echo     yt-dlp: FAILED )
 
 echo     Installing yt-dlp-get-pot-rustypipe...
-python -m pip install --upgrade yt-dlp-get-pot-rustypipe --quiet
-if %ERRORLEVEL% equ 0 ( echo     yt-dlp-get-pot-rustypipe: OK ) else ( echo     yt-dlp-get-pot-rustypipe: FAILED )
+python -m pip install --upgrade yt-dlp-get-pot-rustypipe
+if not errorlevel 1 ( echo     yt-dlp-get-pot-rustypipe: OK ) else ( echo     yt-dlp-get-pot-rustypipe: FAILED )
 
+:: Add Python Scripts directory to PATH (so yt-dlp is findable)
+for /f "delims=" %%S in ('python -c "import site,os; print(os.path.join(os.path.dirname(site.getusersitepackages()),'Scripts'))" 2^>nul') do (
+    set "SCRIPTS_DIR=%%S"
+    set "PATH=%%S;%PATH%"
+    powershell -Command "[Environment]::SetEnvironmentVariable('Path',[Environment]::GetEnvironmentVariable('Path','User')+';%%S','User')" >nul
+)
+if defined SCRIPTS_DIR echo     Added Scripts to PATH: !SCRIPTS_DIR!
+echo %DATE% %TIME% - pip section done >> "%DEBUG_LOG%"
 echo.
+echo %DATE% %TIME% - Section 4 done >> "%DEBUG_LOG%"
 
 :: ===========================================================================
 :: SECTION 5: Finalize setup
 :: ===========================================================================
+echo %DATE% %TIME% - Starting Section 5 >> "%DEBUG_LOG%"
 echo [5/5] Finalizing setup...
 
 :: --- Create config.json ---
@@ -276,13 +232,13 @@ if not exist "!CONFIG_FILE!" (
 :: --- Create F12 helper ---
 set "F12_FILE=%INSTALL_DIR%\F12Developer_Tool_Command.txt"
 (
-    echo const allLinks = Array.from(document.querySelectorAll('a'));
+    echo const allLinks = Array.from^(document.querySelectorAll^('a'^)^);
     echo const watchLinks = allLinks
-    echo   .map(a =^> a.href)
-    echo   .filter(href =^> href.includes('watch?v='));
+    echo   .map(a =^> a.href^)
+    echo   .filter(href =^> href.includes^('watch?v='^));
     echo.
-    echo const uniqueLinks = [...new Set(watchLinks)];
-    echo console.log(uniqueLinks.join('\n'));
+    echo const uniqueLinks = [...new Set^(watchLinks^)];
+    echo console.log^(uniqueLinks.join^('\n'^)^);
     echo.
     echo //######### PRESS ENTER AFTER LAST URL IN URL.txt #########
 ) > "%F12_FILE%"
@@ -291,24 +247,20 @@ echo   - F12Developer_Tool_Command.txt
 :: --- Create desktop shortcut ---
 echo   Creating desktop shortcut...
 set "SHORTCUT_PATH=%USERPROFILE%\Desktop\YouTube Downloader.lnk"
-powershell -Command "& {
-    $WScriptShell = New-Object -ComObject WScript.Shell;
-    $Shortcut = $WScriptShell.CreateShortcut('%SHORTCUT_PATH%');
-    $Shortcut.TargetPath = 'pythonw.exe';
-    $Shortcut.Arguments = '\"%INSTALL_DIR:\=\\%\\youtube_downloader.py\"';
-    $Shortcut.WorkingDirectory = '%INSTALL_DIR%';
-    $Shortcut.Description = 'YouTube Music Premium Downloader';
-    if (Test-Path '%INSTALL_DIR:\=\\%\\yt-dlp premium.ico') {
-        $Shortcut.IconLocation = '%INSTALL_DIR:\=\\%\\yt-dlp premium.ico';
-    }
-    $Shortcut.Save();
-}"
+powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.TargetPath='pythonw.exe';$s.Arguments='%INSTALL_DIR%\youtube_downloader.py';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='YouTube Music Premium Downloader';$s.Save()"
+if exist "%INSTALL_DIR%\yt-dlp premium.ico" (
+    powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.IconLocation='%INSTALL_DIR%\yt-dlp premium.ico';$s.Save()"
+)
 if exist "%SHORTCUT_PATH%" (
     echo   Desktop shortcut created.
 ) else (
     echo   Could not create shortcut. Run manually:
     echo     pythonw "%INSTALL_DIR%\youtube_downloader.py"
 )
+
+:: Clean up shipped zip files
+for %%F in ("%INSTALL_DIR%\rustypipe-botguard-*.zip") do del "%%F" >nul 2>&1
+if exist "%TEMP%\ffmpeg.zip" del "%TEMP%\ffmpeg.zip" >nul 2>&1
 
 echo.
 echo ===========================================================================
@@ -334,6 +286,7 @@ echo   2. Place cookies.txt into:
 echo      %INSTALL_DIR%
 echo   3. Launch the app and start downloading!
 echo.
+echo %DATE% %TIME% - Installer completed successfully >> "%DEBUG_LOG%"
 echo  Thanks for downloading. -Nutcracker :)
 echo  BTC: 15hMZCUhPZs9tMAoVUR3YY4ZLxAKebo3wU
 echo.
