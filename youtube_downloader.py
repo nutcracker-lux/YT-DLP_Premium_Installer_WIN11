@@ -309,10 +309,8 @@ class DownloadEngine:
                 shutil.rmtree(p, ignore_errors=True)
                 self._log(f"[Cleanup] Removed empty: {p}")
 
-    def download_single(self, url, folder_name):
-        ts = str(int(time.time()))
-        name = folder_name or f"Track_{ts}"
-        target = self.base_dir / name
+    def download_single(self, url, target_path):
+        target = Path(target_path)
         hq = target / "[HQ-256k]"
         fb = target / "[Fallback-AIFF]"
         target.mkdir(parents=True, exist_ok=True)
@@ -336,10 +334,8 @@ class DownloadEngine:
         else:
             self._send('error', f"Failed: {title}")
 
-    def download_playlist(self, urls, folder_name):
-        ts = str(int(time.time()))
-        name = folder_name or f"Playlist_{ts}"
-        target = self.base_dir / name
+    def download_playlist(self, urls, target_path):
+        target = Path(target_path)
         hq = target / "[HQ-256k]"
         fb = target / "[Fallback-AIFF]"
         target.mkdir(parents=True, exist_ok=True)
@@ -468,9 +464,7 @@ class Application(tk.Tk):
         folder_f = ttk.LabelFrame(body, text="Save Location", padding=8)
         folder_f.pack(fill='x', pady=(0, 8))
 
-        self.folder_var = tk.StringVar(value=str(
-            Path(self.config_data.get('install_root', str(SCRIPT_DIR))) / 'yt-dlp'
-        ))
+        self.folder_var = tk.StringVar(value='')
         self.folder_entry = ttk.Entry(folder_f, textvariable=self.folder_var,
                                       font=('Segoe UI', 10))
         self.folder_entry.pack(side='left', fill='x', expand=True, padx=(0, 6))
@@ -529,9 +523,6 @@ class Application(tk.Tk):
         ttk.Button(action_f, text="View Log", style='Small.TButton',
                    command=self._view_log).pack(side='right', padx=(0, 4))
 
-        # --- Folder name (for create-new) ---
-        self._folder_name = None
-
         # Set initial mode
         self._on_mode_change()
 
@@ -563,9 +554,12 @@ class Application(tk.Tk):
             self.url_var.set(path)
 
     def _browse_folder(self):
+        start = self.folder_var.get() or str(
+            Path(self.config_data.get('install_root', str(SCRIPT_DIR))) / 'yt-dlp'
+        )
         path = filedialog.askdirectory(
             title="Select download folder",
-            initialdir=self.folder_var.get() or str(Path.home())
+            initialdir=start
         )
         if path:
             self.folder_var.set(path)
@@ -589,12 +583,13 @@ class Application(tk.Tk):
         def confirm():
             name = name_var.get().strip()
             if name:
-                base = Path(self.folder_var.get())
+                base = Path(
+                    self.config_data.get('install_root', str(SCRIPT_DIR))
+                ) / 'yt-dlp'
                 new_dir = base / name
                 try:
                     new_dir.mkdir(parents=True, exist_ok=True)
                     self.folder_var.set(str(new_dir))
-                    self._folder_name = name
                     dialog.destroy()
                 except Exception as e:
                     messagebox.showerror("Error", f"Could not create folder:\n{e}")
@@ -715,16 +710,9 @@ class Application(tk.Tk):
         # Create engine
         engine = DownloadEngine(self.config_data, self.status_queue)
 
-        # Determine folder name
-        if self._folder_name:
-            name = self._folder_name
-            self._folder_name = None
-        else:
-            name = folder_path_obj.name
-
         if mode == 'single':
             self.download_thread = threading.Thread(
-                target=engine.download_single, args=(url_or_file, name),
+                target=engine.download_single, args=(url_or_file, folder_path),
                 daemon=True
             )
         else:
@@ -744,7 +732,7 @@ class Application(tk.Tk):
                 self._set_busy(False)
                 return
             self.download_thread = threading.Thread(
-                target=engine.download_playlist, args=(urls, name),
+                target=engine.download_playlist, args=(urls, folder_path),
                 daemon=True
             )
 
