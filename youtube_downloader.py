@@ -15,6 +15,10 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 
 #TODO: make create folder actually always be inside yt-dlp folder inside directory.
 
+#TODO: install.bat dows not download python when not detected
+
+#TODO: couldnt create shortcut for user when installing bat, needs fix.
+    
 import os
 import sys
 import re
@@ -51,7 +55,6 @@ const watchLinks = allLinks
 const uniqueLinks = [...new Set(watchLinks)];
 console.log(uniqueLinks.join('\\n'));"""
 
-PROGRESS_RE = re.compile(r'\[download\]\s+(\d+\.?\d*)%')
 
 # ============================================================================
 # URL SANITIZATION  (ported from youtube_downloader.zsh)
@@ -110,6 +113,7 @@ class DownloadEngine:
         self.queue = status_queue
         self._cancel_event = threading.Event()
         self._process = None
+        self._ffmpeg_process = None
 
         root = Path(config.get('install_root', str(SCRIPT_DIR)))
         self.base_dir = root / 'yt-dlp'
@@ -120,7 +124,23 @@ class DownloadEngine:
 
     def cancel(self):
         self._cancel_event.set()
+        if self._ffmpeg_process and self._ffmpeg_process.poll() is None:
+            try:
+                self._ffmpeg_process.terminate()
+            except Exception:
+                pass
         if self._process and self._process.poll() is None:
+            self._kill_process_tree()
+
+    def _kill_process_tree(self):
+        try:
+            subprocess.run(
+                ['taskkill', '/F', '/T', '/PID', str(self._process.pid)],
+                capture_output=True, timeout=5,
+                startupinfo=self._make_startupinfo(),
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+            )
+        except Exception:
             try:
                 self._process.terminate()
             except Exception:
@@ -147,7 +167,7 @@ class DownloadEngine:
         si.wShowWindow = 0
         return si
 
-    def _run_subprocess(self, args, progress_callback=None):
+    def _run_subprocess(self, args):
         self._process = subprocess.Popen(
             args,
             stdout=subprocess.PIPE,
@@ -156,22 +176,26 @@ class DownloadEngine:
             startupinfo=self._make_startupinfo(),
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
         )
+        line_queue = queue.Queue()
+        def _reader():
+            for line in self._process.stdout:
+                line_queue.put(line)
+            line_queue.put(None)
+        reader_thread = threading.Thread(target=_reader, daemon=True)
+        reader_thread.start()
         while True:
-            line = self._process.stdout.readline()
-            if not line:
-                break
-            line = line.rstrip('\n\r')
-            self._log(line)
-            if progress_callback:
-                m = PROGRESS_RE.search(line)
-                if m:
-                    try:
-                        progress_callback(float(m.group(1)))
-                    except ValueError:
-                        pass
             if self.is_cancelled:
-                self._process.terminate()
+                self._kill_process_tree()
                 break
+            try:
+                line = line_queue.get(timeout=0.5)
+            except queue.Empty:
+                if self._process.poll() is not None and line_queue.empty():
+                    break
+                continue
+            if line is None:
+                break
+            self._log(line.rstrip('\n\r'))
         self._process.wait()
         return self._process.returncode == 0
 
@@ -221,13 +245,16 @@ class DownloadEngine:
                 'yt-dlp', '--cookies', str(self.cookie_file),
                 '--no-playlist',
                 '--extractor-args', extractor_args,
+                '--js-runtimes', 'node',
+                '--remote-components', 'ejs:github',
                 '-f', '141',
                 '--add-metadata', '--embed-thumbnail',
                 '-o', str(Path(hq_dir) / '%(title)s.%(ext)s'),
                 url,
             ]
-            callback = lambda pct: self._send('progress_pct', value=pct)
-            ok = self._run_subprocess(args, progress_callback=callback)
+            ok = self._run_subprocess(args)
+            if self.is_cancelled:
+                return False, 'cancelled', title
             if ok:
                 self._log(f"[Success] Downloaded HQ (141) for {title}.")
                 self._send('success', f"Downloaded: {title} (HQ 256kbps)")
@@ -237,6 +264,9 @@ class DownloadEngine:
             self._log("[!] No valid cookies. Skipping HQ attempt.")
 
         # Fallback: WebM -> WAV -> AIFF
+        if self.is_cancelled:
+            return False, 'cancelled', title
+
         self._log(f"[Task] Initiating AIFF fallback for {title}.")
         self._send('progress', f"Downloading audio for {title}...")
         ffmpeg = self._get_ffmpeg()
@@ -244,14 +274,17 @@ class DownloadEngine:
         args = [
             'yt-dlp', '--ffmpeg-location', ffmpeg,
             '--no-playlist',
+            '--js-runtimes', 'node',
+            '--remote-components', 'ejs:github',
             '-f', 'bestaudio[ext=webm]',
             '--write-thumbnail', '--convert-thumbnails', 'jpg',
             '-x', '--audio-format', 'wav',
             '-o', str(Path(fallback_dir) / '%(title)s.%(ext)s'),
             url,
         ]
-        callback = lambda pct: self._send('progress_pct', value=pct)
-        ok = self._run_subprocess(args, progress_callback=callback)
+        ok = self._run_subprocess(args)
+        if self.is_cancelled:
+            return False, 'cancelled', title
         if not ok:
             self._log(f"[ERROR] Fallback download failed for {title}.")
             return False, 'failed', title
@@ -261,6 +294,9 @@ class DownloadEngine:
         if not wavs:
             self._log("[ERROR] No WAV file found after download.")
             return False, 'failed', title
+
+        if self.is_cancelled:
+            return False, 'cancelled', title
 
         wav = str(wavs[0])
         jpg = str(jpgs[0]) if jpgs else None
@@ -281,15 +317,22 @@ class DownloadEngine:
                   '-id3v2_version', '3', '-write_id3v2', '1', aiff]
         )
 
-        p = subprocess.Popen(
+        self._ffmpeg_process = subprocess.Popen(
             ff_args,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding='utf-8', errors='replace',
             startupinfo=self._make_startupinfo(),
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
         )
-        p.wait()
+        with open(self.log_file_path, 'a', encoding='utf-8') as log:
+            for line in self._ffmpeg_process.stdout:
+                log.write(line)
+        self._ffmpeg_process.wait()
 
-        if p.returncode != 0:
+        if self.is_cancelled:
+            return False, 'cancelled', title
+
+        if self._ffmpeg_process.returncode != 0:
             self._log(f"[ERROR] AIFF conversion failed for {title}.")
             os.remove(wav)
             if jpg and Path(jpg).exists():
@@ -329,7 +372,9 @@ class DownloadEngine:
         ok, fmt, title = self._download_track(clean, str(hq), str(fb))
         self._cleanup(target, hq, fb)
 
-        if ok:
+        if fmt == 'cancelled':
+            self._send('cancelled', f"Cancelled.")
+        elif ok:
             self._send('complete', f"Done! {title} ({fmt.upper()})")
         else:
             self._send('error', f"Failed: {title}")
@@ -345,11 +390,13 @@ class DownloadEngine:
         total = len(urls)
         success = 0
         failed = 0
+        cancelled = False
         self._send('progress', f"Playlist: {total} tracks")
 
         for i, url in enumerate(urls):
             if self.is_cancelled:
                 self._send('cancelled', f"Cancelled at track {i+1}/{total}")
+                cancelled = True
                 break
 
             clean = sanitize_url(url)
@@ -357,6 +404,10 @@ class DownloadEngine:
             self._send('track', f"[{i+1}/{total}] Processing...")
 
             ok, fmt, title = self._download_track(clean, str(hq), str(fb))
+            if fmt == 'cancelled':
+                self._send('cancelled', f"Cancelled at track {i+1}/{total}")
+                cancelled = True
+                break
             if ok:
                 success += 1
             else:
@@ -372,7 +423,8 @@ class DownloadEngine:
                     time.sleep(1)
 
         self._cleanup(target, hq, fb)
-        self._send('complete', f"Done! {success} ok, {failed} failed.")
+        if not cancelled:
+            self._send('complete', f"Done! {success} ok, {failed} failed.")
 
 # ============================================================================
 # GUI APPLICATION
@@ -468,8 +520,9 @@ class Application(tk.Tk):
         self.folder_entry = ttk.Entry(folder_f, textvariable=self.folder_var,
                                       font=('Segoe UI', 10))
         self.folder_entry.pack(side='left', fill='x', expand=True, padx=(0, 6))
-        ttk.Button(folder_f, text="Browse...", style='Small.TButton',
-                   command=self._browse_folder).pack(side='right')
+        self.browse_folder_btn = ttk.Button(folder_f, text="Browse...", style='Small.TButton',
+                                            command=self._browse_folder)
+        self.browse_folder_btn.pack(side='right')
         ttk.Button(folder_f, text="Create New...", style='Small.TButton',
                    command=self._create_folder).pack(side='right', padx=(0, 4))
 
@@ -525,6 +578,7 @@ class Application(tk.Tk):
 
         # Set initial mode
         self._on_mode_change()
+        self._update_folder_browse_state()
 
         # Start polling queue
         self._poll_queue()
@@ -537,6 +591,15 @@ class Application(tk.Tk):
             self.browse_btn.configure(state='disabled')
         else:
             self.browse_btn.configure(state='normal')
+
+    def _update_folder_browse_state(self):
+        yt_dlp_root = Path(
+            self.config_data.get('install_root', str(SCRIPT_DIR))
+        ) / 'yt-dlp'
+        has_sub = yt_dlp_root.is_dir() and any(
+            p.is_dir() for p in yt_dlp_root.iterdir()
+        )
+        self.browse_folder_btn.configure(state='normal' if has_sub else 'disabled')
 
     def _paste_url(self):
         try:
@@ -554,14 +617,22 @@ class Application(tk.Tk):
             self.url_var.set(path)
 
     def _browse_folder(self):
-        start = self.folder_var.get() or str(
-            Path(self.config_data.get('install_root', str(SCRIPT_DIR))) / 'yt-dlp'
-        )
+        yt_dlp_root = Path(
+            self.config_data.get('install_root', str(SCRIPT_DIR))
+        ) / 'yt-dlp'
+        start = self.folder_var.get() or (str(yt_dlp_root) if yt_dlp_root.is_dir() else None)
         path = filedialog.askdirectory(
             title="Select download folder",
             initialdir=start
         )
         if path:
+            if not str(Path(path).resolve()).startswith(str(yt_dlp_root.resolve())):
+                messagebox.showerror(
+                    "Invalid folder",
+                    f"You can only select folders inside:\n{yt_dlp_root}\n\n"
+                    "OR: Use 'Create New' to make a new subfolder inside yt-dlp."
+                )
+                return
             self.folder_var.set(path)
 
     def _create_folder(self):
@@ -590,6 +661,7 @@ class Application(tk.Tk):
                 try:
                     new_dir.mkdir(parents=True, exist_ok=True)
                     self.folder_var.set(str(new_dir))
+                    self._update_folder_browse_state()
                     dialog.destroy()
                 except Exception as e:
                     messagebox.showerror("Error", f"Could not create folder:\n{e}")
@@ -676,9 +748,26 @@ class Application(tk.Tk):
             messagebox.showwarning("Missing URL", "Please enter a YouTube Music URL.")
             return
 
+        if mode == 'single' and not (url_or_file.startswith('http://') or url_or_file.startswith('https://')):
+            messagebox.showerror(
+                "Invalid input",
+                "Single track mode only accepts a direct web URL.\n"
+                "If you want to download multiple tracks, switch to Playlist mode and select a .txt file with URLs.\n"
+                "Find out how to get playlist URLs by clicking the \"? How to get URLs\" button in the top right corner."
+            )
+            return
+
         if mode == 'playlist':
             if not url_or_file:
                 messagebox.showwarning("Missing file", "Please select a .txt file.")
+                return
+            if url_or_file.startswith('http://') or url_or_file.startswith('https://'):
+                messagebox.showerror(
+                    "Invalid input",
+                    "Playlist mode does not accept direct URLs.\n"
+                    "Please select a .txt file containing playlist URLs.\n"
+                    "Click the \"? How to get URLs\" button in the top right corner for help."
+                )
                 return
             if not Path(url_or_file).exists():
                 messagebox.showerror("File not found", f"File does not exist:\n{url_or_file}")
@@ -751,6 +840,9 @@ class Application(tk.Tk):
             self.cancel_btn.configure(state='normal')
             self.url_entry.configure(state='disabled')
             self.browse_btn.configure(state='disabled')
+            self.browse_folder_btn.configure(state='disabled')
+            self.progress_bar.configure(mode='indeterminate')
+            self.progress_bar.start(10)
         else:
             self.download_btn.configure(state='normal')
             self.cancel_btn.configure(state='disabled')
@@ -759,6 +851,9 @@ class Application(tk.Tk):
                 self.browse_btn.configure(state='disabled')
             else:
                 self.browse_btn.configure(state='normal')
+            self._update_folder_browse_state()
+            self.progress_bar.stop()
+            self.progress_bar.configure(mode='determinate')
 
     def _poll_queue(self):
         try:
@@ -773,10 +868,7 @@ class Application(tk.Tk):
         t = msg.get('type', '')
         text = msg.get('message', '')
 
-        if t == 'progress_pct':
-            val = msg.get('value', 0)
-            self.progress_var.set(val)
-        elif t == 'progress':
+        if t == 'progress':
             self.status_var.set(text)
         elif t == 'track':
             self.status_var.set(text)
@@ -791,12 +883,16 @@ class Application(tk.Tk):
         elif t == 'complete':
             self.status_var.set(text)
             self.track_var.set(text)
+            self.progress_bar.stop()
+            self.progress_bar.configure(mode='determinate')
             self.progress_var.set(100)
             self._set_busy(False)
             messagebox.showinfo("Download Complete", text)
         elif t == 'cancelled':
             self.status_var.set(text)
             self.track_var.set(text)
+            self.progress_bar.stop()
+            self.progress_bar.configure(mode='determinate')
             self._set_busy(False)
             messagebox.showinfo("Cancelled", text)
         elif t == 'info':
