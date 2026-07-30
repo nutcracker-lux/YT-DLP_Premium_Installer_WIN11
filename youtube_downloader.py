@@ -7,17 +7,103 @@ A GUI application for YouTube Music Premium users to download
 high-quality audio (256kbps AAC .m4a or AIFF fallback).
 """
 
-#TODO: add uninstall.bat that uninstalls yt-dlp and ffmpeg with:
-#   pip uninstall yt-dlp yt-dlp-get-pot-rustypipe -y
-#   winget uninstall --id Gyan.FFmpeg
-#   pip uninstall yt-dlp-get-pot-rustypipe yt-dlp -y
-#then runs where ffmpeg and where yt-dlp to check. if failed, popup for user
-
-#TODO: make create folder actually always be inside yt-dlp folder inside directory.
-
-#TODO: install.bat dows not download python when not detected
-
-#TODO: couldnt create shortcut for user when installing bat, needs fix.
+# ============================================================================
+# TESTING CHECKLIST  (tick when verified)
+# ============================================================================
+#
+# MODE SWITCHING:
+# [ ] Single track radio → switches mode, browse btn disabled, url entry cleared
+# [ ] Playlist radio → switches mode, browse btn enabled
+# [ ] Mode switching mid-download: radio buttons NOT disabled — potential bug
+#
+# URL/FILE INPUT:
+# [ ] Single track + empty field → "Missing URL" popup
+# [ ] Single track + file path → error with "switch to Playlist mode" hint
+# [ ] Single track + web URL → accepted (both http/https)
+# [ ] Playlist + empty field → "Missing file" popup
+# [ ] Playlist + web URL → error with "? How to get URLs" hint
+# [ ] Playlist + non-existent file path → "File not found" popup
+# [ ] Playlist + existing .txt with valid playlist URLs → downloads
+# [ ] Playlist + existing .txt with 0 valid URLs → warning + "? How to get URLs"
+# [ ] Paste button → pastes clipboard content into URL field
+# [ ] Browse File button (playlist mode) → file dialog opens, path inserted
+# [ ] Browse File button (single mode) → disabled
+#
+# SAVE LOCATION:
+# [ ] No folder selected → "Missing folder" popup
+# [ ] Browse inside yt-dlp/ → folder path set
+# [ ] Browse outside yt-dlp/ → error "OR: Use Create New"
+# [ ] Browse greyed out when yt-dlp/ missing or empty
+# [ ] Create New → creates subfolder inside yt-dlp/, path set, browse re-enabled
+# [ ] Download to existing folder with pre-existing file → yt-dlp skips, no overwrite
+# [ ] Entering a non-existent folder path → auto-created
+#
+# COOKIES:
+# [ ] Cookies field empty → HQ step skipped, goes to AIFF fallback
+# [ ] Valid cookies → HQ 141 attempted
+# [ ] Invalid cookies → HQ fails (error logged), falls back to AIFF
+# [ ] Browse cookies → file dialog opens
+# [ ] Get Cookie Extension → opens Chrome Web Store page
+#
+# DOWNLOAD (HQ 141 PATH):
+# [ ] Cookies present + HQ available → 141 .m4a downloaded with metadata/cover
+# [ ] HQ downloaded → progress bar pulses, stops on completion
+# [ ] HQ downloaded → "Download Complete" popup with title
+#
+# DOWNLOAD (AIFF FALLBACK PATH):
+# [ ] No cookies / HQ fails → WAV downloaded, thumbnail written
+# [ ] ffmpeg converts WAV+JPG → AIFF with cover art + ID3v2 tags
+# [ ] WAV and JPG cleaned up after conversion
+# [ ] AIFF conversion failure → error popup, temp files removed
+#
+# CANCEL:
+# [ ] Cancel during idle → no-op (button disabled, nothing happens)
+# [ ] Cancel during HQ download → process tree killed, "Cancelled" message
+# [ ] Cancel during fallback download → same as above
+# [ ] Cancel during ffmpeg conversion → ffmpeg killed, "Cancelled" message
+# [ ] Rapid double-click Cancel → second call safe (process already None)
+# [ ] Cancel mid-playlist → remaining tracks skipped, "Cancelled at track N" message
+#
+# PLAYLIST:
+# [ ] Single valid URL → downloads one track
+# [ ] Multiple URLs → all processed sequentially
+# [ ] Mix of valid + invalid URLs → valid succeed, invalid logged as errors
+# [ ] Delay between tracks (9-16s) → logged as "[Info] Waiting Xs..."
+# [ ] Cancel mid-playlist → stops after current track
+# [ ] One track fails → continues to next, error counted
+#
+# UI DURING DOWNLOAD:
+# [ ] Download button → disabled
+# [ ] Cancel button → enabled
+# [ ] URL entry → disabled
+# [ ] Browse File button → disabled
+# [ ] Browse Folder button → disabled
+# [ ] Progress bar → pulsing (indeterminate)
+# [ ] Status shows current track/progress
+# [ ] After completion: buttons restored, progress stops, status = "Ready."
+# [ ] Mode radio buttons NOT disabled — could switch mode mid-download (bug)
+#
+# LOGS:
+# [ ] View Log button → opens log file
+# [ ] Log contains all [Task]/[Success]/[ERROR] entries per track
+# [ ] Log contains ffmpeg output on fallback
+#
+# MISC:
+# [ ] Open Folder → opens file explorer at save location
+# [ ] ? How to get URLs → instructions window with steps + script
+# [ ] Copy Script → F12 script copied to clipboard
+# [ ] --remote-components ejs:github works on first run (downloads solver)
+#
+# ============================================================================
+# IMPLEMENTATION TODOs (priority order)
+# ============================================================================
+#
+# TODO: [P1] install.bat — add Node.js install via winget (required for --js-runtimes node)
+# TODO: [P2] install.bat — verify ffmpeg installed into PATH correctly
+# TODO: [P3] install.bat — fix Python auto-install when not detected
+# TODO: [P4] — create uninstall.bat
+#
+# ============================================================================
     
 import os
 import sys
@@ -698,6 +784,8 @@ class Application(tk.Tk):
         win.transient(self)
         win.grab_set()
 
+        folder_name = Path(self.folder_var.get()).name if self.folder_var.get() else "yt-dlp"
+
         ttk.Label(win, text="How to get playlist URLs:", font=('Segoe UI', 11, 'bold'),
                   wraplength=540).pack(pady=(14, 4))
 
@@ -706,11 +794,17 @@ class Application(tk.Tk):
             "2. Scroll to the bottom so all tracks are loaded\n"
             "3. Press F12 \u2192 go to Console tab\n"
             "4. Copy the script below, paste it into the Console, press Enter\n"
+            "(4.1 If the pasting fails, type \"allow pasting\", press Enter and paste again)\n"
             "5. Copy all returned URLs into a .txt file (one per line)\n"
-            "6. Save the file and select it in the app"
+            "6. After the last URL, press Enter to add a blank line at the end\n"
+            f"7. Save the file (preferably in your {folder_name} folder) as \"URL.txt\" and select it in the app\n"
+            "8. For future downloads, just edit the URL.txt file\n"
         )
         ttk.Label(win, text=steps, wraplength=540, justify='left',
-                  font=('Segoe UI', 10)).pack(pady=(0, 10))
+                  font=('Segoe UI', 10)).pack(pady=(0, 4))
+
+        ttk.Label(win, text=f"* Click \"Open Folder\" to find the location of {folder_name} folder. *",
+                  wraplength=540, justify='left', font=('Segoe UI', 10, 'italic')).pack(pady=(0, 10))
 
         ttk.Label(win, text="Script to paste in Console:", font=('Segoe UI', 10, 'bold'),
                   wraplength=540).pack(pady=(0, 4))
@@ -812,9 +906,13 @@ class Application(tk.Tk):
                 if not urls:
                     messagebox.showwarning(
                         "No URLs",
-                        "No playlist URLs (containing 'list=PL') found in the file."
+                        "No playlist URLs (containing 'list=PL') found in the file.\n"
+                        "Make sure to follow the \"? How to get URLs\" guide."
                     )
+                    engine._log("[ERROR] NO VALID URLS COULD BE DETECTED! MAKE SURE TO FOLLOW \"? How to get URLs\".")
                     self._set_busy(False)
+                    self.status_var.set("Ready.")
+                    self.progress_var.set(0)
                     return
             except Exception as e:
                 messagebox.showerror("Error", f"Could not read file:\n{e}")
