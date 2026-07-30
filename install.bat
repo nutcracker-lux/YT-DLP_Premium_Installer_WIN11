@@ -41,23 +41,22 @@ if %ERRORLEVEL% equ 0 (
         set "PATH=%%~dpD;%PATH%"
         powershell -Command "[Environment]::SetEnvironmentVariable('Path',[Environment]::GetEnvironmentVariable('Path','User')+';%%~dpD','User')" >nul
     )
-    goto :python_found
+    python --version >nul 2>nul
+    if !ERRORLEVEL! equ 0 goto :python_found
 )
 
 :: Python not found or too old — install latest via winget
 :install_python
-echo   Python not found (or below 3.12). Attempting auto-install...
+echo   %YELLOW%Python not found (or below 3.12). Attempting auto-install...%RESET%
 
 where winget >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
     echo   %RED%ERROR: winget not available on this system.%RESET%
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Please install Python 3.12+ manually from:%RESET%
+    echo   %RED%Research why your system might not have the winget feature.%RESET%
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%https://www.python.org/downloads/%RESET%
-    :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%MAKE SURE TO CHECK "Add Python to PATH" during installation!%RESET%
+    echo   %RED%https://github.com/microsoft/winget-cli%RESET%
     :: SCRIPT ERROR STOP!!!!!!!!!
     echo   %RED%Then re-run this installer.%RESET%
     echo.
@@ -73,15 +72,11 @@ if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.13 --silent --
 if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.12 --silent --accept-package-agreements >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%WARNING: winget install failed. Trying alternative method...%RESET%
-    start https://www.python.org/downloads/
+    echo   %RED%Python could not be installed via winget.%RESET%
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Please install Python 3.12+ manually. Make sure to check%RESET%
+    echo   %RED%Please open an issue at:%RESET%
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%"Add Python to PATH" during installation.%RESET%
-    echo.
-    :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%After installing, re-run this installer.%RESET%
+    echo   %RED%https://github.com/nutcracker-lux/YT-DLP_Premium_Installer_WIN11/issues%RESET%
     pause
     exit /b 1
 )
@@ -98,9 +93,11 @@ for /f "skip=2 tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul')
 python --version >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Python was installed but is not in PATH yet.%RESET%
+    echo   %RED%Python could not be found after installation.%RESET%
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Please restart this installer or manually add Python to PATH.%RESET%
+    echo   %RED%Try restarting this installer or install Python 3.12+ manually.%RESET%
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    echo   %RED%MAKE SURE TO CHECK "Add Python to PATH" during installation!%RESET%
     pause
     exit /b 1
 )
@@ -119,7 +116,7 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 for /f "tokens=2" %%V in ('python --version 2^>^&1') do set "PY_VER=%%V"
-echo   Python !PY_VER! found: OK
+echo   %GREEN%Python !PY_VER! found: OK%RESET%
 echo.
 
 :: ===========================================================================
