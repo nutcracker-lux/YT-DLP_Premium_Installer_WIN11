@@ -166,6 +166,31 @@ if %WINGET_EXIT% equ 0 (
 :ffmpeg_done
 echo %DATE% %TIME% - ffmpeg section done >> "%DEBUG_LOG%"
 
+:: --- Node.js (required for yt-dlp JS challenge solving on Windows) ---
+echo   Checking Node.js...
+:: Check if node is already in PATH
+where node >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    echo     Node.js: found in PATH
+    goto :node_done
+)
+echo     Node.js: not found. Installing via winget...
+:: Install Node.js silently via winget
+winget install OpenJS.NodeJS --silent --accept-package-agreements
+set "WINGET_NODE_EXIT=%ERRORLEVEL%"
+:: Refresh PATH from registry so the current session can find node
+for /f "skip=2 tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do if not "%%B"=="" set "PATH=%%B;%PATH%"
+for /f "skip=2 tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do if not "%%B"=="" set "PATH=%%B;%PATH%"
+if %WINGET_NODE_EXIT% equ 0 (
+    echo     Node.js: installed OK
+) else (
+    echo     Node.js: install failed
+    echo     Some yt-dlp features may not work without Node.js.
+    echo     Install manually from https://nodejs.org/
+)
+:node_done
+echo %DATE% %TIME% - Node.js section done >> "%DEBUG_LOG%"
+
 :: --- rustypipe-botguard ---
 echo   Checking rustypipe-botguard...
 if exist "%INSTALL_DIR%\rustypipe-botguard.exe" (

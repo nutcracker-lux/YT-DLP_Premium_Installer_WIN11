@@ -98,7 +98,6 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # IMPLEMENTATION TODOs (priority order)
 # ============================================================================
 #
-# TODO: [P1] install.bat — add Node.js install via winget (required for --js-runtimes node)
 # TODO: [P2] install.bat — verify ffmpeg installed into PATH correctly
 # TODO: [P3] install.bat — fix Python auto-install when not detected
 # TODO: [P4] — create uninstall.bat
