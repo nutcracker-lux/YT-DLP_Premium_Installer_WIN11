@@ -67,9 +67,9 @@ if %ERRORLEVEL% neq 0 (
 
 echo   Installing latest Python via winget (this may take a moment)...
 :: Try versions from newest to oldest
-winget install --exact --id Python.Python.3.14 --silent --accept-package-agreements >nul 2>&1
-if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.13 --silent --accept-package-agreements >nul 2>&1
-if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.12 --silent --accept-package-agreements >nul 2>&1
+winget install --exact --id Python.Python.3.14 --silent --accept-package-agreements
+if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.13 --silent --accept-package-agreements
+if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.12 --silent --accept-package-agreements
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
     echo   %RED%Python could not be installed via winget.%RESET%
