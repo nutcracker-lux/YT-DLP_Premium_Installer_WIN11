@@ -5,6 +5,7 @@ setlocal enabledelayedexpansion
 set "CG=powershell -NoProfile -Command Write-Host -ForegroundColor Green"
 set "CR=powershell -NoProfile -Command Write-Host -ForegroundColor Red"
 set "CY=powershell -NoProfile -Command Write-Host -ForegroundColor Yellow"
+set "CB=powershell -NoProfile -Command $Host.UI.RawUI.ForegroundColor='Cyan'"
 
 set "DEBUG_LOG=%TEMP%\ytdlp_install_debug.log"
 echo %DATE% %TIME% - Installer started > "%DEBUG_LOG%"
@@ -45,18 +46,18 @@ if %ERRORLEVEL% equ 0 (
 
 :: Python not found or too old — install latest via winget
 :install_python
-%CY% "  Python not found (or below 3.12). Attempting auto-install..."
+%CY% '  Python not found (or below 3.12). Attempting auto-install...'
 
 where winget >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% "  ERROR: winget not available on this system."
+    %CR% '  ERROR: winget not available on this system.'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% "  Research why your system might not have the winget feature."
+    %CR% '  Research why your system might not have the winget feature.'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% "  https://github.com/microsoft/winget-cli"
+    %CR% '  https://github.com/microsoft/winget-cli'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% "  Then re-run this installer."
+    %CR% '  Then re-run this installer.'
     echo.
     echo %DATE% %TIME% - ERROR: winget not available >> "%DEBUG_LOG%"
     pause
@@ -70,14 +71,16 @@ if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.13 --silent --
 if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.12 --silent --accept-package-agreements
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% "  Python could not be installed via winget."
+    %CR% '  Python could not be installed via winget.'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% "  Please open an issue at:"
+    %CR% '  Please open an issue at:'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% "  https://github.com/nutcracker-lux/YT-DLP_Premium_Installer_WIN11/issues"
+    %CR% '  https://github.com/nutcracker-lux/YT-DLP_Premium_Installer_WIN11/issues'
     pause
     exit /b 1
 )
+
+%CB%
 
 :: Wait for install to finish and PATH to update
 echo   Python installed. Refreshing environment...
@@ -91,9 +94,9 @@ for /f "skip=2 tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul')
 python --version >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% "  Python could not be found after installation."
+    %CR% '  Python could not be found after installation.'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% "  Try restarting this installer or install Python 3.12+ manually."
+    %CR% '  Try restarting this installer or install Python 3.12+ manually.'
     :: SCRIPT ERROR STOP!!!!!!!!!
     %CR% '  MAKE SURE TO CHECK "Add Python to PATH" during installation!'
     pause
@@ -118,7 +121,7 @@ for /f "tokens=2" %%V in ('python --version 2^>^&1') do set "PY_VER=%%V"
 echo.
 
 :section2
-color 0B
+%CB%
 :: ===========================================================================
 :: SECTION 2: Choose install path
 :: ===========================================================================
@@ -187,7 +190,7 @@ if defined RUSTYPIPE_ZIP (
 echo.
 echo %DATE% %TIME% - Section 3 done >> "%DEBUG_LOG%"
 
-color 0B
+%CB%
 :: ===========================================================================
 :: SECTION 4: Install dependencies (ffmpeg, yt-dlp, rustypipe-botguard)
 :: ===========================================================================
@@ -223,6 +226,7 @@ if %ERRORLEVEL% equ 0 (
 )
 :ffmpeg_done
 echo %DATE% %TIME% - ffmpeg section done >> "%DEBUG_LOG%"
+%CB%
 
 :: --- Node.js (required for yt-dlp JS challenge solving on Windows) ---
 echo   Checking Node.js...
@@ -255,6 +259,7 @@ if %ERRORLEVEL% equ 0 (
 )
 :node_done
 echo %DATE% %TIME% - Node.js section done >> "%DEBUG_LOG%"
+%CB%
 
 :: --- rustypipe-botguard ---
 echo     rustypipe-botguard.exe: extracting shipped zip...
@@ -314,6 +319,8 @@ if not errorlevel 1 (
     exit /b 1
 )
 
+%CB%
+
 :: Add Python Scripts directory to PATH (so yt-dlp is findable)
 for /f "delims=" %%S in ('python -c "import site,os; print(os.path.join(os.path.dirname(site.getusersitepackages()),'Scripts'))" 2^>nul') do (
     set "SCRIPTS_DIR=%%S"
@@ -325,7 +332,7 @@ echo %DATE% %TIME% - pip section done >> "%DEBUG_LOG%"
 echo.
 echo %DATE% %TIME% - Section 4 done >> "%DEBUG_LOG%"
 
-color 0B
+%CB%
 :: ===========================================================================
 :: SECTION 5: Finalize setup
 :: ===========================================================================
