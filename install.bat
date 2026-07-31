@@ -367,6 +367,14 @@ if exist "%SHORTCUT_PATH%" (
     %CY% '  pythonw "%INSTALL_DIR%\youtube_downloader.py"'
 )
 
+:: --- Create uninstall.bat ---
+copy /Y "%SCRIPT_DIR%\uninstall.bat" "%INSTALL_DIR%\uninstall.bat" >nul 2>&1
+if !ERRORLEVEL! neq 0 (
+    %CY% '  WARNING: could not copy uninstall.bat'
+) else (
+    echo   - uninstall.bat
+)
+
 :: Clean up shipped zip files
 for %%F in ("%INSTALL_DIR%\rustypipe-botguard-*.zip") do del "%%F" >nul 2>&1
 if exist "%TEMP%\ffmpeg.zip" del "%TEMP%\ffmpeg.zip" >nul 2>&1
