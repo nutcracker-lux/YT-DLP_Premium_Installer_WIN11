@@ -59,6 +59,17 @@ if %errorlevel% neq 0 (
 echo [SUCCESS] Step 3 complete.
 pause
 
+echo.
+echo ============================================
+echo  Python removal is optional
+echo ============================================
+set /p "UNINSTALL_PYTHON=Uninstall Python and the Python Launcher too? (y/N): "
+if /i "!UNINSTALL_PYTHON!"=="y" goto :uninstall_python
+echo.
+echo [INFO] Keeping Python and the Python Launcher installed.
+goto :cleanup
+
+:uninstall_python
 REM ---- Step 4: winget uninstall Python Launcher ----
 echo [4/5] Uninstalling Python.Launcher...
 winget uninstall "Python.Launcher"
@@ -90,6 +101,7 @@ for %%P in (3.14 3.13 3.12) do (
 )
 pause
 
+:cleanup
 echo.
 echo ============================================
 echo  Removing desktop shortcut and installation folder...
