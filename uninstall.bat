@@ -13,8 +13,8 @@ if /i not "!PARENT_DIR!"=="%USERPROFILE%" (
     echo  This copy is only shipped with the installer - the real
     echo  uninstaller is inside your installed folder.
     echo.
-    echo  Please open your installed folder (the one you chose during
-    echo  setup) and run uninstall.bat from there.
+    echo  Please open the folder where you installed the app
+    echo  and run uninstall.bat from there.
     echo ===================================================================
     echo.
     pause
