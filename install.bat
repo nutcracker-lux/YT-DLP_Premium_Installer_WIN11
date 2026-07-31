@@ -397,8 +397,10 @@ if /i "!OPEN_COOKIE!"=="y" (
     echo   You can open it later from the app's "Get Cookie Extension" button.
 )
 echo.
-%CG% '  NEXT STEPS:'
-%CG% '   1. Export cookies.txt using the extension'
+%CG% '  NEXT STEPS: (only required for YouTube Music Premium subscription users!)'
+%CG% '   1. Export cookies.txt using the extension while logged into'
+%CG% '      the account that has premium features - otherwise the'
+%CG% '      cookies will not work'
 %CG% '   2. Place cookies.txt into:'
 %CG% '      %INSTALL_DIR%'
 %CG% '   3. Launch the app and start downloading!'
