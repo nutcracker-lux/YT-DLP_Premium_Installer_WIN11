@@ -397,19 +397,19 @@ if /i "!OPEN_COOKIE!"=="y" (
     echo   You can open it later from the app's "Get Cookie Extension" button.
 )
 echo.
-echo  NEXT STEPS:
-echo   1. Export cookies.txt using the extension
-echo   2. Place cookies.txt into:
-echo      %INSTALL_DIR%
-echo   3. Launch the app and start downloading!
+%CG% '  NEXT STEPS:'
+%CG% '   1. Export cookies.txt using the extension'
+%CG% '   2. Place cookies.txt into:'
+%CG% '      %INSTALL_DIR%'
+%CG% '   3. Launch the app and start downloading!'
 echo.
-echo   NOTE: You can safely delete the unzipped folder you ran this
-echo   installer from. Your installed folder is self-contained and
-echo   includes the uninstaller.
+%CG% '   NOTE: You can safely delete the unzipped folder you ran this'
+%CG% '   installer from. Your installed folder is self-contained and'
+%CG% '   includes the uninstaller.'
 echo.
 echo %DATE% %TIME% - Installer completed successfully >> "%DEBUG_LOG%"
 echo  Thanks for downloading. -Nutcracker :)
-echo  BTC: 15hMZCUhPZs9tMAoVUR3YY4ZLxAKebo3wU
+%CR% '  BTC: 15hMZCUhPZs9tMAoVUR3YY4ZLxAKebo3wU'
 echo.
 echo ===========================================================================
 echo.
