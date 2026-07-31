@@ -1,12 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: ANSI escape codes for colored output (Windows 10+)
-for /F "delims=#" %%a in ('prompt #$E#^& for %%b in (1) do rem') do set "ESC=%%a"
-set "GREEN=%ESC%[92m"
-set "RED=%ESC%[91m"
-set "YELLOW=%ESC%[93m"
-set "RESET=%ESC%[0m"
+:: PowerShell helpers for colored output (reliable on all Windows versions)
+set "CG=powershell -NoProfile -Command Write-Host -ForegroundColor Green"
+set "CR=powershell -NoProfile -Command Write-Host -ForegroundColor Red"
+set "CY=powershell -NoProfile -Command Write-Host -ForegroundColor Yellow"
 
 set "DEBUG_LOG=%TEMP%\ytdlp_install_debug.log"
 echo %DATE% %TIME% - Installer started > "%DEBUG_LOG%"
@@ -47,18 +45,18 @@ if %ERRORLEVEL% equ 0 (
 
 :: Python not found or too old — install latest via winget
 :install_python
-echo   %YELLOW%Python not found (or below 3.12). Attempting auto-install...%RESET%
+%CY% "  Python not found (or below 3.12). Attempting auto-install..."
 
 where winget >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%ERROR: winget not available on this system.%RESET%
+    %CR% "  ERROR: winget not available on this system."
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Research why your system might not have the winget feature.%RESET%
+    %CR% "  Research why your system might not have the winget feature."
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%https://github.com/microsoft/winget-cli%RESET%
+    %CR% "  https://github.com/microsoft/winget-cli"
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Then re-run this installer.%RESET%
+    %CR% "  Then re-run this installer."
     echo.
     echo %DATE% %TIME% - ERROR: winget not available >> "%DEBUG_LOG%"
     pause
@@ -72,11 +70,11 @@ if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.13 --silent --
 if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.12 --silent --accept-package-agreements
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Python could not be installed via winget.%RESET%
+    %CR% "  Python could not be installed via winget."
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Please open an issue at:%RESET%
+    %CR% "  Please open an issue at:"
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%https://github.com/nutcracker-lux/YT-DLP_Premium_Installer_WIN11/issues%RESET%
+    %CR% "  https://github.com/nutcracker-lux/YT-DLP_Premium_Installer_WIN11/issues"
     pause
     exit /b 1
 )
@@ -93,11 +91,11 @@ for /f "skip=2 tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul')
 python --version >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Python could not be found after installation.%RESET%
+    %CR% "  Python could not be found after installation."
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Try restarting this installer or install Python 3.12+ manually.%RESET%
+    %CR% "  Try restarting this installer or install Python 3.12+ manually."
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%MAKE SURE TO CHECK "Add Python to PATH" during installation!%RESET%
+    %CR% '  MAKE SURE TO CHECK "Add Python to PATH" during installation!'
     pause
     exit /b 1
 )
@@ -107,19 +105,20 @@ echo %DATE% %TIME% - Python check passed >> "%DEBUG_LOG%"
 python -c "import sys; sys.exit(0 if sys.version_info >= (3,12) else 1)" 2>nul
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%WARNING: Python 3.12+ not detected.%RESET%
+    %CR% '  WARNING: Python 3.12+ not detected.'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Please install Python 3.12+ manually from python.org%RESET%
+    %CR% '  Please install Python 3.12+ manually from python.org'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%MAKE SURE TO CHECK "Add Python to PATH" during installation!%RESET%
+    %CR% '  MAKE SURE TO CHECK "Add Python to PATH" during installation!'
     pause
     exit /b 1
 )
 for /f "tokens=2" %%V in ('python --version 2^>^&1') do set "PY_VER=%%V"
-echo   %GREEN%Python !PY_VER! found: OK%RESET%
+%CG% '  Python !PY_VER! found: OK'
 echo.
 
 :section2
+color 0B
 :: ===========================================================================
 :: SECTION 2: Choose install path
 :: ===========================================================================
@@ -158,7 +157,7 @@ echo [3/5] Copying application files...
 copy /Y "%SCRIPT_DIR%\youtube_downloader.py" "%INSTALL_DIR%\" >nul 2>&1
 if !ERRORLEVEL! neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%FAILED: could not copy youtube_downloader.py%RESET%
+    %CR% '  FAILED: could not copy youtube_downloader.py'
     pause
     exit /b 1
 )
@@ -166,7 +165,7 @@ echo   - youtube_downloader.py
 
 if exist "%SCRIPT_DIR%\yt-dlp premium.ico" (
     copy /Y "%SCRIPT_DIR%\yt-dlp premium.ico" "%INSTALL_DIR%\" >nul 2>&1
-    if !ERRORLEVEL! neq 0 echo   %YELLOW%WARNING: could not copy .ico file%RESET%
+    if !ERRORLEVEL! neq 0 %CY% '  WARNING: could not copy .ico file'
     echo   - yt-dlp premium.ico
 )
 
@@ -178,9 +177,9 @@ for %%F in ("%SCRIPT_DIR%\rustypipe-botguard-*.zip") do (
 if defined RUSTYPIPE_ZIP (
     copy /Y "!RUSTYPIPE_ZIP!" "%INSTALL_DIR%\" >nul 2>&1
     if !ERRORLEVEL! neq 0 (
-        echo   %YELLOW%WARNING: could not copy rustypipe zip%RESET%
-        echo   %YELLOW%Manually copy it and unpack into:%RESET%
-        echo   %YELLOW%%INSTALL_DIR%%RESET%
+        %CY% '  WARNING: could not copy rustypipe zip'
+        %CY% '  Manually copy it and unpack into:'
+        %CY% '  %INSTALL_DIR%'
     )
     for %%F in ("!RUSTYPIPE_ZIP!") do echo   - %%~nxF
 )
@@ -188,6 +187,7 @@ if defined RUSTYPIPE_ZIP (
 echo.
 echo %DATE% %TIME% - Section 3 done >> "%DEBUG_LOG%"
 
+color 0B
 :: ===========================================================================
 :: SECTION 4: Install dependencies (ffmpeg, yt-dlp, rustypipe-botguard)
 :: ===========================================================================
@@ -198,7 +198,7 @@ echo [4/5] Installing dependencies...
 echo   Checking ffmpeg...
 where ffmpeg >nul 2>nul
 if %ERRORLEVEL% equ 0 (
-    echo     %GREEN%ffmpeg: found in PATH%RESET%
+    %CG% '  ffmpeg: found in PATH'
     goto :ffmpeg_done
 )
 echo     ffmpeg: installing via winget...
@@ -210,14 +210,14 @@ for /f "skip=2 tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul')
 :: Verify ffmpeg is now findable
 where ffmpeg >nul 2>nul
 if %ERRORLEVEL% equ 0 (
-    echo     %GREEN%ffmpeg: installed OK%RESET%
+    %CG% '  ffmpeg: installed OK'
 ) else (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%ffmpeg: install failed%RESET%
+    %CR% '  ffmpeg: install failed'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%ffmpeg is required for audio conversion.%RESET%
+    %CR% '  ffmpeg is required for audio conversion.'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%Install manually from https://ffmpeg.org/ then re-run.%RESET%
+    %CR% '  Install manually from https://ffmpeg.org/ then re-run.'
     pause
     exit /b 1
 )
@@ -229,7 +229,7 @@ echo   Checking Node.js...
 :: Check if node is already in PATH
 where node >nul 2>nul
 if %ERRORLEVEL% equ 0 (
-    echo     %GREEN%Node.js: found in PATH%RESET%
+    %CG% '  Node.js: found in PATH'
     goto :node_done
 )
 echo     Node.js: installing via winget...
@@ -242,14 +242,14 @@ for /f "skip=2 tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul')
 :: Verify node is now findable
 where node >nul 2>nul
 if %ERRORLEVEL% equ 0 (
-    echo     %GREEN%Node.js: installed OK%RESET%
+    %CG% '  Node.js: installed OK'
 ) else (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%Node.js: install failed%RESET%
+    %CR% '  Node.js: install failed'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%Node.js is required for yt-dlp JS challenge solving on Windows.%RESET%
+    %CR% '  Node.js is required for yt-dlp JS challenge solving on Windows.'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%Install manually from https://nodejs.org/ then re-run.%RESET%
+    %CR% '  Install manually from https://nodejs.org/ then re-run.'
     pause
     exit /b 1
 )
@@ -264,16 +264,16 @@ if defined RUSTYPE_SHIPPED (
     tar -xf "!RUSTYPE_SHIPPED!" -C "%INSTALL_DIR%"
 )
 if exist "%INSTALL_DIR%\rustypipe-botguard.exe" (
-    echo     %GREEN%rustypipe-botguard: OK%RESET%
+    %CG% '  rustypipe-botguard: OK'
 ) else (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%rustypipe-botguard: FAILED%RESET%
+    %CR% '  rustypipe-botguard: FAILED'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%Download rustypipe-botguard manually, unpack it%RESET%
+    %CR% '  Download rustypipe-botguard manually, unpack it'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%and paste the .exe into this folder:%RESET%
+    %CR% '  and paste the .exe into this folder:'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%%INSTALL_DIR%%RESET%
+    %CR% '  %INSTALL_DIR%'
 )
 :rustypipe_done
 echo %DATE% %TIME% - rustypipe section done >> "%DEBUG_LOG%"
@@ -285,14 +285,14 @@ python -m pip install --upgrade pip --quiet 2>&1 | findstr /v "^$" >nul
 echo     Installing yt-dlp[default] with extras...
 python -m pip install --upgrade "yt-dlp[default]"
 if not errorlevel 1 (
-    echo     %GREEN%yt-dlp: OK%RESET%
+    %CG% '  yt-dlp: OK'
 ) else (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%yt-dlp: FAILED%RESET%
+    %CR% '  yt-dlp: FAILED'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%yt-dlp is required. Install manually:%RESET%
+    %CR% '  yt-dlp is required. Install manually:'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%python -m pip install -U "yt-dlp[default]"%RESET%
+    %CR% '  python -m pip install -U "yt-dlp[default]"'
     pause
     exit /b 1
 )
@@ -300,16 +300,16 @@ if not errorlevel 1 (
 echo     Installing yt-dlp-get-pot-rustypipe...
 python -m pip install --upgrade yt-dlp-get-pot-rustypipe
 if not errorlevel 1 (
-    echo     %GREEN%yt-dlp-get-pot-rustypipe: OK%RESET%
+    %CG% '  yt-dlp-get-pot-rustypipe: OK'
 ) else (
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%yt-dlp-get-pot-rustypipe: FAILED%RESET%
+    %CR% '  yt-dlp-get-pot-rustypipe: FAILED'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%yt-dlp-get-pot-rustypipe is required for bot solving.%RESET%
+    %CR% '  yt-dlp-get-pot-rustypipe is required for bot solving.'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%Install manually:%RESET%
+    %CR% '  Install manually:'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo     %RED%python -m pip install -U yt-dlp-get-pot-rustypipe%RESET%
+    %CR% '  python -m pip install -U yt-dlp-get-pot-rustypipe'
     pause
     exit /b 1
 )
@@ -325,6 +325,7 @@ echo %DATE% %TIME% - pip section done >> "%DEBUG_LOG%"
 echo.
 echo %DATE% %TIME% - Section 4 done >> "%DEBUG_LOG%"
 
+color 0B
 :: ===========================================================================
 :: SECTION 5: Finalize setup
 :: ===========================================================================
@@ -352,11 +353,11 @@ if exist "%INSTALL_DIR%\yt-dlp premium.ico" (
     powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.IconLocation='%INSTALL_DIR%\yt-dlp premium.ico';$s.Save()"
 )
 if exist "%SHORTCUT_PATH%" (
-    echo     %GREEN%Desktop shortcut created: %INSTALL_NAME%.lnk%RESET%
+    %CG% '  Desktop shortcut created: %INSTALL_NAME%.lnk'
 ) else (
-    echo     %YELLOW%Could not create desktop shortcut.%RESET%
-    echo     %YELLOW%Run manually:%RESET%
-    echo     %YELLOW%pythonw "%INSTALL_DIR%\youtube_downloader.py"%RESET%
+    %CY% '  Could not create desktop shortcut.'
+    %CY% '  Run manually:'
+    %CY% '  pythonw "%INSTALL_DIR%\youtube_downloader.py"'
 )
 
 :: Clean up shipped zip files
