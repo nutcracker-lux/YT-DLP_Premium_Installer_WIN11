@@ -403,6 +403,10 @@ echo   2. Place cookies.txt into:
 echo      %INSTALL_DIR%
 echo   3. Launch the app and start downloading!
 echo.
+echo   NOTE: You can safely delete the unzipped folder you ran this
+echo   installer from. Your installed folder is self-contained and
+echo   includes the uninstaller.
+echo.
 echo %DATE% %TIME% - Installer completed successfully >> "%DEBUG_LOG%"
 echo  Thanks for downloading. -Nutcracker :)
 echo  BTC: 15hMZCUhPZs9tMAoVUR3YY4ZLxAKebo3wU

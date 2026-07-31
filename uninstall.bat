@@ -1,6 +1,26 @@
 @echo off
 setlocal enabledelayedexpansion
 
+REM --- Safety net: must be run from the installed folder ---
+for %%I in ("%~dp0..") do set "PARENT_DIR=%%~fI"
+if /i not "!PARENT_DIR!"=="%USERPROFILE%" (
+    echo.
+    echo ===================================================================
+    echo  WRONG LOCATION - THIS COPY IS ONLY FOR SHIPPING
+    echo ===================================================================
+    echo.
+    echo  The uninstall.bat file should be run from your installed folder.
+    echo  This copy is only shipped with the installer - the real
+    echo  uninstaller is inside your installed folder.
+    echo.
+    echo  Please open your installed folder (the one you chose during
+    echo  setup) and run uninstall.bat from there.
+    echo ===================================================================
+    echo.
+    pause
+    exit /b 1
+)
+
 echo ============================================
 echo  Uninstall yt-dlp / ffmpeg / Python stack
 echo ============================================
