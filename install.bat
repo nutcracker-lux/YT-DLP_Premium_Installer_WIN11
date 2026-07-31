@@ -30,7 +30,7 @@ echo [1/5] Checking Python installation...
 :check_python
 :: Check if Python >= 3.12 is already available
 python -c "import sys; sys.exit(0 if sys.version_info >= (3,12) else 1)" 2>nul
-if %ERRORLEVEL% equ 0 goto :python_found
+if %ERRORLEVEL% equ 0 goto :section2
 
 :: Try Python Launcher (pre-installed on Windows 10+)
 py -3.12 -c "import sys; sys.exit(0)" >nul 2>&1
@@ -41,8 +41,8 @@ if %ERRORLEVEL% equ 0 (
         set "PATH=%%~dpD;%PATH%"
         powershell -Command "[Environment]::SetEnvironmentVariable('Path',[Environment]::GetEnvironmentVariable('Path','User')+';%%~dpD','User')" >nul
     )
-    python --version >nul 2>nul
-    if !ERRORLEVEL! equ 0 goto :python_found
+    python -c "import sys; sys.exit(0 if sys.version_info >= (3,12) else 1)" 2>nul
+    if !ERRORLEVEL! equ 0 goto :section2
 )
 
 :: Python not found or too old — install latest via winget
@@ -67,9 +67,9 @@ if %ERRORLEVEL% neq 0 (
 
 echo   Installing latest Python via winget (this may take a moment)...
 :: Try versions from newest to oldest
-winget install --exact --id Python.Python.3.14 --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
-if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.13 --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
-if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
+winget install --exact --id Python.Python.3.14 --silent --accept-package-agreements
+if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.13 --silent --accept-package-agreements
+if %ERRORLEVEL% neq 0 winget install --exact --id Python.Python.3.12 --silent --accept-package-agreements
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
     echo   %RED%Python could not be installed via winget.%RESET%
@@ -104,14 +104,14 @@ if %ERRORLEVEL% neq 0 (
 
 :python_found
 echo %DATE% %TIME% - Python check passed >> "%DEBUG_LOG%"
-python --version 2>&1 | findstr /r "3\.(1[2-9]|[2-9][0-9])" >nul
+python -c "import sys; sys.exit(0 if sys.version_info >= (3,12) else 1)" 2>nul
 if %ERRORLEVEL% neq 0 (
     :: SCRIPT ERROR STOP!!!!!!!!!
     echo   %RED%WARNING: Python 3.12+ not detected.%RESET%
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Your Python version may be too old.%RESET%
+    echo   %RED%Please install Python 3.12+ manually from python.org%RESET%
     :: SCRIPT ERROR STOP!!!!!!!!!
-    echo   %RED%Please install Python 3.12+ from python.org%RESET%
+    echo   %RED%MAKE SURE TO CHECK "Add Python to PATH" during installation!%RESET%
     pause
     exit /b 1
 )
@@ -119,6 +119,7 @@ for /f "tokens=2" %%V in ('python --version 2^>^&1') do set "PY_VER=%%V"
 echo   %GREEN%Python !PY_VER! found: OK%RESET%
 echo.
 
+:section2
 :: ===========================================================================
 :: SECTION 2: Choose install path
 :: ===========================================================================
