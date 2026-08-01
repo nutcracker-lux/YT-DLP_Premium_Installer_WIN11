@@ -20,11 +20,13 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # [ ] Single track + empty field → "Missing URL" popup
 # [ ] Single track + file path → error with "switch to Playlist mode" hint
 # [ ] Single track + web URL → accepted (both http/https)
+# [ ] Single track + URL not containing 'music.youtube.' → "Unsupported URL" popup
+# [ ] Single track + music.youtube.co.uk/.de etc. → accepted (normalized to .com)
 # [ ] Playlist + empty field → "Missing file" popup
 # [ ] Playlist + web URL → error with "? How to get URLs" hint
 # [ ] Playlist + non-existent file path → "File not found" popup
 # [ ] Playlist + existing .txt with valid playlist URLs → downloads
-# [ ] Playlist + existing .txt with 0 valid URLs → warning + "? How to get URLs"
+# [ ] Playlist + existing .txt with 0 valid URLs → warning (album not supported + own non-private playlist instructions)
 # [ ] Paste button → pastes clipboard content into URL field
 # [ ] Browse File button (playlist mode) → file dialog opens, path inserted
 # [ ] Browse File button (single mode) → disabled
@@ -94,10 +96,24 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # [ ] Copy Script → F12 script copied to clipboard
 # [ ] --remote-components ejs:github works on first run (downloads solver)
 #
+# MASTER TASK LIST (work through one at a time):
+# [ ] install.bat: retry loop for yt-dlp[default] + rustypipe pip installs (retry only on failure, break on success)
+# [ ] Help window step 7: save url.txt in the '<typed folder name>' app folder
+# [ ] Help window note: point to the yt-dlp folder so the user sees all their music folders
+# [ ] Open Folder button: always open the main app folder
+# [ ] Single-track URL validation: reject hosts that don't contain 'music.youtube.'
+# [ ] "How to use cookies" in-app button (where to save cookies.txt)
+#
 # ============================================================================
 # IMPLEMENTATION TODOs (priority order)
 # ============================================================================
 #
+# 1. install.bat: retry loop for yt-dlp[default] + rustypipe pip installs (retry only on failure, break on success)
+# 2. Help window step 7: save url.txt in the '<typed folder name>' app folder
+# 3. Help window note: point to the yt-dlp folder so the user sees all their music folders
+# 4. Open Folder button: always open the main app folder
+# 5. Single-track URL validation: reject hosts that don't contain 'music.youtube.'
+# 6. "How to use cookies" in-app button (where to save cookies.txt)
 #
 # ============================================================================
     
@@ -658,6 +674,9 @@ class Application(tk.Tk):
         ttk.Button(action_f, text="View Log", style='Small.TButton',
                    command=self._view_log).pack(side='right', padx=(0, 4))
 
+        ttk.Label(body, text="Only music.youtube.com links are supported.",
+                  font=('Segoe UI', 8), foreground='#888').pack(pady=(0, 2))
+
         # Set initial mode
         self._on_mode_change()
         self._update_folder_browse_state()
@@ -902,10 +921,19 @@ class Application(tk.Tk):
                 if not urls:
                     messagebox.showwarning(
                         "No URLs",
-                        "No playlist URLs (containing 'list=PL') found in the file.\n"
-                        "Make sure to follow the \"? How to get URLs\" guide."
+                        "No playlist URLs (containing 'list=PL') were found in the file.\n"
+                        "\n"
+                        "If you tried to download an ALBUM: albums are not supported,\n"
+                        "and their links (list=OLAK...) are rejected.\n"
+                        "\n"
+                        "Instead, do this:\n"
+                        "  - Create your OWN playlist in YouTube Music\n"
+                        "  - Make sure it is NOT set to private\n"
+                        "  - Copy the links from INSIDE your playlist\n"
+                        "\n"
+                        "See the \"? How to get URLs\" guide for details."
                     )
-                    engine._log("[ERROR] NO VALID URLS COULD BE DETECTED! MAKE SURE TO FOLLOW \"? How to get URLs\".")
+                    engine._log("[ERROR] NO VALID URLS COULD BE DETECTED. If you tried to download an ALBUM: albums are not supported. Create your own NON-private playlist and copy the links from inside it.")
                     self._set_busy(False)
                     self.status_var.set("Ready.")
                     self.progress_var.set(0)

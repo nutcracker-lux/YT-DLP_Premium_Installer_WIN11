@@ -285,8 +285,6 @@ echo %DATE% %TIME% - rustypipe section done >> "%DEBUG_LOG%"
 
 :: --- Python packages ---
 echo   Installing/upgrading Python packages...
-python -m pip install --upgrade pip --quiet 2>&1 | findstr /v "^$" >nul
-
 echo     Installing yt-dlp[default] with extras...
 python -m pip install --upgrade "yt-dlp[default]"
 if not errorlevel 1 (
@@ -295,7 +293,15 @@ if not errorlevel 1 (
     :: SCRIPT ERROR STOP!!!!!!!!!
     %CR% '  yt-dlp: FAILED'
     :: SCRIPT ERROR STOP!!!!!!!!!
-    %CR% '  yt-dlp is required. Install manually:'
+    %CR% '  yt-dlp is required. It could not be installed.'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  Tip: Re-run this installer and enter the SAME'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  folder name. Files are simply re-copied, so'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  no new folder or bloat is created.'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  Or install it manually:'
     :: SCRIPT ERROR STOP!!!!!!!!!
     %CR% '  python -m pip install -U "yt-dlp[default]"'
     pause
@@ -388,6 +394,9 @@ echo  Installed to: %INSTALL_DIR%
 echo.
 echo  Launch via desktop shortcut: %INSTALL_NAME%.lnk
 echo.
+echo.
+%CY% '  NOTE: The cookie extension is only required for'
+%CY% '  YouTube Music Premium subscription users!'
 echo.
 set /p "OPEN_COOKIE=Open cookie extension page in your browser now? (y/N): "
 if /i "!OPEN_COOKIE!"=="y" (
