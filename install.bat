@@ -361,10 +361,7 @@ if not exist "!CONFIG_FILE!" (
 :: --- Create desktop shortcut ---
 echo   Creating desktop shortcut...
 set "SHORTCUT_PATH=%USERPROFILE%\Desktop\%INSTALL_NAME%.lnk"
-powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.TargetPath='pythonw.exe';$s.Arguments='%INSTALL_DIR%\youtube_downloader.py';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='YouTube Music Premium Downloader';$s.Save()"
-if exist "%INSTALL_DIR%\YT-DLP_Premium.ico" (
-    powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.IconLocation='%INSTALL_DIR%\YT-DLP_Premium.ico';$s.Save()"
-)
+powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.TargetPath='pythonw.exe';$s.Arguments='%INSTALL_DIR%\youtube_downloader.py';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='YouTube Music Premium Downloader';$s.IconLocation='%INSTALL_DIR%\YT-DLP_Premium.ico';$s.Save()"
 if exist "%SHORTCUT_PATH%" (
     %CG% '  Desktop shortcut created: %INSTALL_NAME%.lnk'
 ) else (
@@ -383,7 +380,6 @@ if !ERRORLEVEL! neq 0 (
 
 :: Clean up shipped zip files
 for %%F in ("%INSTALL_DIR%\rustypipe-botguard-*.zip") do del "%%F" >nul 2>&1
-if exist "%TEMP%\ffmpeg.zip" del "%TEMP%\ffmpeg.zip" >nul 2>&1
 
 echo.
 echo ===========================================================================
