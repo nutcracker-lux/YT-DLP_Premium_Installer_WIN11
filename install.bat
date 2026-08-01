@@ -46,7 +46,7 @@ if %ERRORLEVEL% equ 0 (
     if !ERRORLEVEL! equ 0 goto :section2
 )
 
-:: Python not found or too old — install latest via winget
+:: Python not found or too old - install latest via winget
 :install_python
 %CY% '  Python not found (or below 3.12). Attempting auto-install...'
 

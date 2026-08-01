@@ -1,3 +1,17 @@
+# ============================================================================
+# YOUTUBE DOWNLOADER FOR WINDOWS
+# ============================================================================
+#
+# CONTENTS  (jump to any section)
+# ============================================================================
+#   SECTION 1: Imports and dependencies
+#   SECTION 2: Constants
+#   SECTION 3: URL sanitization
+#   SECTION 4: Config (config.json)
+#   SECTION 5: Download engine
+#   SECTION 6: GUI application
+#   SECTION 7: Entry point
+# ============================================================================
 
 """
 YouTube Downloader for Windows
@@ -14,7 +28,7 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # MODE SWITCHING:
 # [ ] Single track radio → switches mode, browse btn disabled, url entry cleared
 # [ ] Playlist radio → switches mode, browse btn enabled
-# [ ] Mode switching mid-download: radio buttons NOT disabled — potential bug
+# [ ] Mode switching mid-download: radio buttons NOT disabled - potential bug
 #
 # URL/FILE INPUT:
 # [ ] Single track + empty field → "Missing URL" popup
@@ -83,7 +97,7 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # [ ] Progress bar → pulsing (indeterminate)
 # [ ] Status shows current track/progress
 # [ ] After completion: buttons restored, progress stops, status = "Ready."
-# [ ] Mode radio buttons NOT disabled — could switch mode mid-download (bug)
+# [ ] Mode radio buttons NOT disabled - could switch mode mid-download (bug)
 #
 # LOGS:
 # [ ] View Log button → opens log file
@@ -114,9 +128,13 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # 4. [x] Open Folder button: always open the main app folder
 # 5. [x] Single-track URL validation: reject hosts that don't contain 'music.youtube.'
 # 6. [x] "How to use cookies" in-app button (where to save cookies.txt)
-#
+
 # ============================================================================
-    
+# SECTION 1: IMPORTS AND DEPENDENCIES
+# ============================================================================
+# Standard-library modules only - the GUI itself needs no third-party packages.
+# yt-dlp, ffmpeg and rustypipe-botguard are separate executables.
+
 import os
 import sys
 import re
@@ -135,17 +153,22 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
 # ============================================================================
-# CONSTANTS
+# SECTION 2: CONSTANTS
 # ============================================================================
 
+# --- App identity ---
 APP_NAME = "YouTube Downloader"
 VERSION = "1.0.0"
 
+# --- Cookie extension (Chrome Web Store) ---
+# Opened by the "Get Cookie Extension" buttons in the GUI.
 COOKIE_EXTENSION_URL = (
     "https://chromewebstore.google.com/detail/"
     "get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
 )
 
+# --- F12 Console script (copied to clipboard by "Copy Script") ---
+# Collects every watch?v= link currently loaded on a YouTube Music playlist page.
 F12_SCRIPT = """const allLinks = Array.from(document.querySelectorAll('a'));
 const watchLinks = allLinks
   .map(a => a.href)
@@ -155,8 +178,13 @@ console.log(uniqueLinks.join('\\n'));"""
 
 
 # ============================================================================
-# URL SANITIZATION  (ported from youtube_downloader.zsh)
+# SECTION 3: URL SANITIZATION  (ported from youtube_downloader.zsh)
 # ============================================================================
+# Normalizes a track URL before downloading:
+#   - strips the &list= fragment from single-track links
+#   - converts www.youtube.com / youtube.com into music.youtube.com
+#   - converts country domains (music.youtube.co.uk, music.youtube.de, ...)
+#     into plain music.youtube.com
 
 def sanitize_url(url):
     url = re.sub(r'&list=[^&]*', '', url)
@@ -171,9 +199,14 @@ def sanitize_url(url):
     return url
 
 # ============================================================================
-# CONFIG
+# SECTION 4: CONFIG  (config.json)
 # ============================================================================
+# Settings are stored in a config.json file in the installed app folder:
+#   install_root     - app folder that contains the yt-dlp subfolder
+#   cookie_file      - full path to cookies.txt (YouTube Music Premium only)
+#   rustypipe_bg_bin - full path to rustypipe-botguard.exe (bot solver)
 
+# Folder this script is running from (the installed app folder)
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
 def load_config():
@@ -200,12 +233,21 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2)
 
 # ============================================================================
-# DOWNLOAD ENGINE
+# SECTION 5: DOWNLOAD ENGINE
 # ============================================================================
+# Runs yt-dlp in a background thread and reports progress to the GUI through
+# a thread-safe queue.
+#
+# Per track, two download strategies are tried:
+#   1. HQ path   - cookies present: yt-dlp fetches format 141 (.m4a, 256kbps)
+#                  with metadata and embedded cover art.
+#   2. AIFF path - no cookies (or HQ failed): WebM -> WAV -> AIFF via ffmpeg,
+#                  with cover art and ID3v2 tags.
 
 class DownloadEngine:
     """Runs yt-dlp downloads, communicates with GUI via a queue."""
 
+    # --- Setup ---
     def __init__(self, config, status_queue):
         self.config = config
         self.queue = status_queue
@@ -220,6 +262,7 @@ class DownloadEngine:
         self.rustypipe_bin = Path(config.get('rustypipe_bg_bin', root / 'rustypipe-botguard.exe'))
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
+    # --- Cancellation (kills the running process tree + ffmpeg) ---
     def cancel(self):
         self._cancel_event.set()
         if self._ffmpeg_process and self._ffmpeg_process.poll() is None:
@@ -248,6 +291,7 @@ class DownloadEngine:
     def is_cancelled(self):
         return self._cancel_event.is_set()
 
+    # --- Logging and GUI messaging helpers ---
     def _log(self, msg):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         with open(self.log_file_path, 'a', encoding='utf-8') as f:
@@ -256,6 +300,7 @@ class DownloadEngine:
     def _send(self, msg_type, message, **kw):
         self.queue.put({'type': msg_type, 'message': message, **kw})
 
+    # --- Subprocess helpers ---
     def _make_startupinfo(self):
         """Return STARTUPINFO that hides the console window (Windows only)."""
         if sys.platform != 'win32':
@@ -313,8 +358,9 @@ class DownloadEngine:
                 return c
         return 'ffmpeg'
 
+    # --- Core download logic for a single track ---
     def _download_track(self, url, hq_dir, fallback_dir):
-        # Get title
+        # Resolve the track title first (used for logging and the AIFF filename)
         try:
             si = self._make_startupinfo()
             r = subprocess.run(
@@ -331,11 +377,12 @@ class DownloadEngine:
         self._log(f"[Task] Downloading: {title}")
         self._send('track', f"Downloading: {title}")
 
+        # Build the extractor args: node JS runtime + rustypipe bot solver
         extractor_args = "youtube:player_client=mweb;formats=missing_pot"
         if self.rustypipe_bin and self.rustypipe_bin.exists():
             extractor_args += f";rustypipe_bg_bin={self.rustypipe_bin}"
 
-        # Try HQ (format 141)
+        # --- HQ path (format 141) - only attempted when a valid cookies.txt exists ---
         if self.cookie_file.exists() and self.cookie_file.stat().st_size > 0:
             self._log("[Task] Cookies detected. Attempting HQ (141) download.")
             self._send('progress', "Attempting HQ download (format 141)...")
@@ -361,7 +408,7 @@ class DownloadEngine:
         else:
             self._log("[!] No valid cookies. Skipping HQ attempt.")
 
-        # Fallback: WebM -> WAV -> AIFF
+        # --- AIFF fallback path: WebM -> WAV -> AIFF via ffmpeg ---
         if self.is_cancelled:
             return False, 'cancelled', title
 
@@ -443,6 +490,7 @@ class DownloadEngine:
         self._log(f"[Success] Downloaded and converted {title} to AIFF.")
         return True, 'aiff', title
 
+    # --- Cleanup: remove empty HQ / fallback / target folders ---
     def _cleanup(self, target, hq_dir, fallback_dir):
         for d in [hq_dir, fallback_dir, target]:
             p = Path(d)
@@ -450,6 +498,7 @@ class DownloadEngine:
                 shutil.rmtree(p, ignore_errors=True)
                 self._log(f"[Cleanup] Removed empty: {p}")
 
+    # --- Public entry points (called from background threads) ---
     def download_single(self, url, target_path):
         target = Path(target_path)
         hq = target / "[HQ-256k]"
@@ -511,6 +560,7 @@ class DownloadEngine:
             else:
                 failed += 1
 
+            # Friendly delay between tracks (9-16s) to avoid rate limiting
             if i < total - 1 and not self.is_cancelled:
                 delay = random.randint(9, 16)
                 self._log(f"[Info] Waiting {delay}s...")
@@ -525,13 +575,16 @@ class DownloadEngine:
             self._send('complete', f"Done! {success} ok, {failed} failed.")
 
 # ============================================================================
-# GUI APPLICATION
+# SECTION 6: GUI APPLICATION
 # ============================================================================
+# Tkinter window. Owns every widget (mode radios, URL/folder/cookies entries,
+# progress bar, action buttons), validates user input before a download
+# starts, and pops up the help / folder / log windows.
 
 class Application(tk.Tk):
-    PAD = {'padx': 10, 'pady': 4}
     PAD_LR = {'padx': (12, 12)}
 
+    # --- Setup ---
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME}  {VERSION}")
@@ -570,8 +623,8 @@ class Application(tk.Tk):
         style.configure('Action.TButton', font=('Segoe UI', 12, 'bold'))
         style.configure('Cancel.TButton', font=('Segoe UI', 12))
         style.configure('Small.TButton', font=('Segoe UI', 9))
-        style.configure('Red.Horizontal.TProgressbar', foreground='#1a73e8', background='#1a73e8')
 
+    # --- UI construction ---
     def _build_ui(self):
         # --- Header ---
         header = ttk.Frame(self)
@@ -627,7 +680,7 @@ class Application(tk.Tk):
                    command=self._create_folder).pack(side='right', padx=(0, 4))
 
         # --- Cookies ---
-        cooks_f = ttk.LabelFrame(body, text="Cookies (optional – required for HQ 256kbps)",
+        cooks_f = ttk.LabelFrame(body, text="Cookies (optional - required for HQ 256kbps)",
                                  padding=8)
         cooks_f.pack(fill='x', pady=(0, 8))
 
@@ -686,6 +739,7 @@ class Application(tk.Tk):
         # Start polling queue
         self._poll_queue()
 
+    # --- Mode / state helpers ---
     def _on_mode_change(self):
         mode = self.mode_var.get()
         self.url_entry.configure(state='normal')
@@ -704,6 +758,7 @@ class Application(tk.Tk):
         )
         self.browse_folder_btn.configure(state='normal' if has_sub else 'disabled')
 
+    # --- Input helpers ---
     def _paste_url(self):
         try:
             clip = self.clipboard_get()
@@ -780,6 +835,7 @@ class Application(tk.Tk):
         ttk.Button(btn_f, text="Create", command=confirm).pack(side='right', padx=(8, 0))
         ttk.Button(btn_f, text="Cancel", command=dialog.destroy).pack(side='right')
 
+    # --- Cookies ---
     def _browse_cookies(self):
         path = filedialog.askopenfilename(
             title="Select cookies.txt",
@@ -843,6 +899,7 @@ class Application(tk.Tk):
                    command=self._open_cookie_ext).pack(side='left', padx=6)
         ttk.Button(btn_f, text="Close", command=win.destroy).pack(side='left', padx=6)
 
+    # --- Help windows ---
     def _show_url_help(self):
         win = tk.Toplevel(self)
         win.title("Getting URLs")
@@ -900,11 +957,13 @@ class Application(tk.Tk):
         ttk.Button(btn_f, text="Copy Script", command=_copy).pack(side='left', padx=6)
         ttk.Button(btn_f, text="Close", command=win.destroy).pack(side='left', padx=6)
 
+    # --- Download flow ---
     def _start_download(self):
         mode = self.mode_var.get()
         url_or_file = self.url_var.get().strip()
         folder_path = self.folder_var.get().strip()
 
+        # --- Validate input: single track ---
         if mode == 'single' and not url_or_file:
             messagebox.showwarning("Missing URL", "Please enter a YouTube Music URL.")
             return
@@ -926,6 +985,7 @@ class Application(tk.Tk):
             )
             return
 
+        # --- Validate input: playlist file ---
         if mode == 'playlist':
             if not url_or_file:
                 messagebox.showwarning("Missing file", "Please select a .txt file.")
@@ -942,6 +1002,7 @@ class Application(tk.Tk):
                 messagebox.showerror("File not found", f"File does not exist:\n{url_or_file}")
                 return
 
+        # --- Validate save location ---
         if not folder_path:
             messagebox.showwarning("Missing folder", "Please select a save location.")
             return
@@ -959,7 +1020,7 @@ class Application(tk.Tk):
             self.config_data['cookie_file'] = self.cookies_var.get().strip()
             save_config(self.config_data)
 
-        # Set busy state
+        # --- Set busy state ---
         self._set_busy(True)
         self.status_var.set("Starting download...")
         self.progress_var.set(0)
@@ -974,6 +1035,7 @@ class Application(tk.Tk):
                 daemon=True
             )
         else:
+            # Read the playlist file and keep only valid music.youtube playlist links
             try:
                 with open(url_or_file, 'r', encoding='utf-8') as f:
                     lines = [l.strip() for l in f if l.strip()]
@@ -1038,6 +1100,7 @@ class Application(tk.Tk):
             self.progress_bar.stop()
             self.progress_bar.configure(mode='determinate')
 
+    # --- Status queue ---
     def _poll_queue(self):
         try:
             while True:
@@ -1048,6 +1111,8 @@ class Application(tk.Tk):
         self.after(100, self._poll_queue)
 
     def _handle_status(self, msg):
+        # Each message type updates the UI; 'complete'/'cancelled' also restore
+        # the buttons, and 'error' pops a message box.
         t = msg.get('type', '')
         text = msg.get('message', '')
 
@@ -1081,6 +1146,7 @@ class Application(tk.Tk):
         elif t == 'info':
             self.status_var.set(text)
 
+    # --- Utility actions ---
     def _open_folder(self):
         install_root = self.config_data.get('install_root', str(SCRIPT_DIR))
         if Path(install_root).exists():
@@ -1116,6 +1182,7 @@ class Application(tk.Tk):
             txt.insert('1.0', content)
             txt.configure(state='disabled')
 
+    # --- Window close ---
     def _on_close(self):
         if self.current_engine and self.download_thread and self.download_thread.is_alive():
             if messagebox.askyesno("Quit?", "A download is in progress. Cancel and quit?"):
@@ -1126,8 +1193,10 @@ class Application(tk.Tk):
 
 
 # ============================================================================
-# ENTRY POINT
+# SECTION 7: ENTRY POINT
 # ============================================================================
+# Only runs when this file is executed directly (double-click / shortcut),
+# not when it is imported.
 
 def main():
     app = Application()
