@@ -7,8 +7,6 @@ set "CR=powershell -NoProfile -Command Write-Host -ForegroundColor Red"
 set "CY=powershell -NoProfile -Command Write-Host -ForegroundColor Yellow"
 set "CB=powershell -NoProfile -Command $Host.UI.RawUI.ForegroundColor='Cyan'"
 
-set "PIP_MAX_ATTEMPTS=3"
-
 set "DEBUG_LOG=%TEMP%\ytdlp_install_debug.log"
 echo %DATE% %TIME% - Installer started > "%DEBUG_LOG%"
 
@@ -287,44 +285,46 @@ echo %DATE% %TIME% - rustypipe section done >> "%DEBUG_LOG%"
 
 :: --- Python packages ---
 echo   Installing/upgrading Python packages...
-call :pip_retry "yt-dlp[default]" "yt-dlp" :ytdlp_fail "yt-dlp[default] with extras"
-goto :ytdlp_ok
+echo     Installing yt-dlp[default] with extras...
+python -m pip install --upgrade "yt-dlp[default]"
+if not errorlevel 1 (
+    %CG% '  yt-dlp: OK'
+) else (
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  yt-dlp: FAILED'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  yt-dlp is required. It could not be installed.'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  Tip: Re-run this installer and enter the SAME'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  folder name. Files are simply re-copied, so'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  no new folder or bloat is created.'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  Or install it manually:'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  python -m pip install -U "yt-dlp[default]"'
+    pause
+    exit /b 1
+)
 
-:ytdlp_fail
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  yt-dlp: FAILED'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  yt-dlp is required. It could not be installed.'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  Tip: Re-run this installer and enter the SAME'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  folder name. Files are simply re-copied, so'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  no new folder or bloat is created.'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  Or install it manually:'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  python -m pip install -U "yt-dlp[default]"'
-pause
-exit /b 1
+echo     Installing yt-dlp-get-pot-rustypipe...
+python -m pip install --upgrade yt-dlp-get-pot-rustypipe
+if not errorlevel 1 (
+    %CG% '  yt-dlp-get-pot-rustypipe: OK'
+) else (
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  yt-dlp-get-pot-rustypipe: FAILED'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  yt-dlp-get-pot-rustypipe is required for bot solving.'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  Install manually:'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  python -m pip install -U yt-dlp-get-pot-rustypipe'
+    pause
+    exit /b 1
+)
 
-:ytdlp_ok
-call :pip_retry "yt-dlp-get-pot-rustypipe" "yt-dlp-get-pot-rustypipe" :rustypipe_fail "yt-dlp-get-pot-rustypipe"
-goto :rustypipe_ok
-
-:rustypipe_fail
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  yt-dlp-get-pot-rustypipe: FAILED'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  yt-dlp-get-pot-rustypipe is required for bot solving.'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  Install manually:'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  python -m pip install -U yt-dlp-get-pot-rustypipe'
-pause
-exit /b 1
-
-:rustypipe_ok
 %CB%
 
 :: Add Python Scripts directory to PATH (so yt-dlp is findable)
@@ -426,31 +426,3 @@ echo ===========================================================================
 echo.
 pause
 exit /b 0
-
-:pip_retry
-:: usage: call :pip_retry <package-spec> <display-label> <failure-label> <install-text>
-set "PR_SPEC=%~1"
-set "PR_LABEL=%~2"
-set "PR_FAIL=%~3"
-set "PR_INSTALL_TEXT=%~4"
-set /a PR_TRY=0
-:pip_retry_loop
-set /a PR_TRY+=1
-if !PR_TRY! gtr %PIP_MAX_ATTEMPTS% (
-    echo %DATE% %TIME% - %PR_LABEL% failed after %PIP_MAX_ATTEMPTS% attempts >> "%DEBUG_LOG%"
-    goto %PR_FAIL%
-)
-if !PR_TRY! equ 1 (
-    echo     Installing !PR_INSTALL_TEXT!...
-) else (
-    echo %DATE% %TIME% - %PR_LABEL% attempt !PR_TRY! failed, retrying >> "%DEBUG_LOG%"
-    %CY% '  !PR_LABEL! install failed. Retrying (attempt !PR_TRY!/%PIP_MAX_ATTEMPTS%)...'
-    timeout /t 5 /nobreak >nul
-)
-python -m pip install --upgrade "!PR_SPEC!"
-if not errorlevel 1 (
-    %CG% '  !PR_LABEL!: OK'
-    echo %DATE% %TIME% - %PR_LABEL% installed OK >> "%DEBUG_LOG%"
-    exit /b 0
-)
-goto :pip_retry_loop
