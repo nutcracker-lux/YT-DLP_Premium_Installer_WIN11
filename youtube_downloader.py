@@ -98,9 +98,6 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # IMPLEMENTATION TODOs (priority order)
 # ============================================================================
 #
-# TODO: [P2] install.bat — verify ffmpeg installed into PATH correctly
-# TODO: [P3] install.bat — fix Python auto-install when not detected ⬅ IMPLEMENTED, needs VM testing
-# TODO: [P4] — create uninstall.bat
 #
 # ============================================================================
     
@@ -538,7 +535,7 @@ class Application(tk.Tk):
         self._load_icon()
 
     def _load_icon(self):
-        icon_path = Path(__file__).parent / "yt-dlp premium.ico"
+        icon_path = Path(__file__).parent / "YT-DLP_Premium.ico"
         if icon_path.exists():
             try:
                 self.iconbitmap(str(icon_path))

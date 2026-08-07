@@ -166,10 +166,10 @@ if !ERRORLEVEL! neq 0 (
 )
 echo   - youtube_downloader.py
 
-if exist "%SCRIPT_DIR%\yt-dlp premium.ico" (
-    copy /Y "%SCRIPT_DIR%\yt-dlp premium.ico" "%INSTALL_DIR%\" >nul 2>&1
+if exist "%SCRIPT_DIR%\YT-DLP_Premium.ico" (
+    copy /Y "%SCRIPT_DIR%\YT-DLP_Premium.ico" "%INSTALL_DIR%\" >nul 2>&1
     if !ERRORLEVEL! neq 0 %CY% '  WARNING: could not copy .ico file'
-    echo   - yt-dlp premium.ico
+    echo   - YT-DLP_Premium.ico
 )
 
 :: Copy rustypipe-botguard zip (shipped with installer, extracted in section 4)
@@ -356,8 +356,8 @@ if not exist "!CONFIG_FILE!" (
 echo   Creating desktop shortcut...
 set "SHORTCUT_PATH=%USERPROFILE%\Desktop\%INSTALL_NAME%.lnk"
 powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.TargetPath='pythonw.exe';$s.Arguments='%INSTALL_DIR%\youtube_downloader.py';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='YouTube Music Premium Downloader';$s.Save()"
-if exist "%INSTALL_DIR%\yt-dlp premium.ico" (
-    powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.IconLocation='%INSTALL_DIR%\yt-dlp premium.ico';$s.Save()"
+if exist "%INSTALL_DIR%\YT-DLP_Premium.ico" (
+    powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.IconLocation='%INSTALL_DIR%\YT-DLP_Premium.ico';$s.Save()"
 )
 if exist "%SHORTCUT_PATH%" (
     %CG% '  Desktop shortcut created: %INSTALL_NAME%.lnk'
