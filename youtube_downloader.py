@@ -97,23 +97,23 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # [ ] --remote-components ejs:github works on first run (downloads solver)
 #
 # MASTER TASK LIST (work through one at a time):
-# [ ] install.bat: retry loop for yt-dlp[default] + rustypipe pip installs (retry only on failure, break on success)
-# [ ] Help window step 7: save url.txt in the '<typed folder name>' app folder
-# [ ] Help window note: point to the yt-dlp folder so the user sees all their music folders
-# [ ] Open Folder button: always open the main app folder
-# [ ] Single-track URL validation: reject hosts that don't contain 'music.youtube.'
-# [ ] "How to use cookies" in-app button (where to save cookies.txt)
+# [x] install.bat: retry loop for yt-dlp[default] + rustypipe pip installs (retry only on failure, break on success)
+# [x] Help window step 7: save url.txt in the '<typed folder name>' app folder
+# [x] Help window note: point to the yt-dlp folder so the user sees all their music folders
+# [x] Open Folder button: always open the main app folder
+# [x] Single-track URL validation: reject hosts that don't contain 'music.youtube.'
+# [x] "How to use cookies" in-app button (where to save cookies.txt)
 #
 # ============================================================================
 # IMPLEMENTATION TODOs (priority order)
 # ============================================================================
 #
-# 1. install.bat: retry loop for yt-dlp[default] + rustypipe pip installs (retry only on failure, break on success)
-# 2. Help window step 7: save url.txt in the '<typed folder name>' app folder
-# 3. Help window note: point to the yt-dlp folder so the user sees all their music folders
-# 4. Open Folder button: always open the main app folder
-# 5. Single-track URL validation: reject hosts that don't contain 'music.youtube.'
-# 6. "How to use cookies" in-app button (where to save cookies.txt)
+# 1. [x] install.bat: retry loop for yt-dlp[default] + rustypipe pip installs (retry only on failure, break on success)
+# 2. [x] Help window step 7: save url.txt in the '<typed folder name>' app folder
+# 3. [x] Help window note: point to the yt-dlp folder so the user sees all their music folders
+# 4. [x] Open Folder button: always open the main app folder
+# 5. [x] Single-track URL validation: reject hosts that don't contain 'music.youtube.'
+# 6. [x] "How to use cookies" in-app button (where to save cookies.txt)
 #
 # ============================================================================
     
@@ -596,6 +596,8 @@ class Application(tk.Tk):
                         value='playlist', command=self._on_mode_change).pack(side='left')
         ttk.Button(mode_f, text="? How to get URLs", style='Small.TButton',
                    command=self._show_url_help).pack(side='right')
+        ttk.Button(mode_f, text="? How to use cookies", style='Small.TButton',
+                   command=self._show_cookie_help).pack(side='right', padx=(0, 4))
 
         # --- URL / File input ---
         url_f = ttk.LabelFrame(body, text="URL / File", padding=8)
@@ -791,6 +793,56 @@ class Application(tk.Tk):
     def _open_cookie_ext(self):
         webbrowser.open(COOKIE_EXTENSION_URL)
 
+    def _show_cookie_help(self):
+        win = tk.Toplevel(self)
+        win.title("Using Cookies")
+        win.geometry("580x560")
+        win.resizable(False, False)
+        win.transient(self)
+        win.grab_set()
+
+        app_folder = SCRIPT_DIR.name
+
+        ttk.Label(win, text="How to use cookies:", font=('Segoe UI', 11, 'bold'),
+                  wraplength=540).pack(pady=(14, 4))
+
+        steps = (
+            "1. Cookies are only required if you have a YouTube Music Premium\n"
+            "   subscription and want to access the best quality\n"
+            "   (HQ 256kbps 141 format). Without cookies, downloads fall back\n"
+            "   to a lower quality (AIFF).\n"
+            "\n"
+            "2. If you haven't installed the cookie extension yet, click the\n"
+            "   \"Get Cookie Extension\" button below. It works with Chrome and Firefox.\n"
+            "\n"
+            "3. When installed, log into your YouTube account in your browser\n"
+            "   and click the extension icon.\n"
+            "\n"
+            "4. Click \"Download all cookies\" to export the file.\n"
+            "\n"
+            f"5. Save it as cookies.txt - preferably in your {app_folder} folder.\n"
+            "\n"
+            "6. Make sure the path in the Cookies input box above points to\n"
+            "   your cookies.txt file.\n"
+            "\n"
+            "7. Download your track(s) - the HQ version will now be used.\n"
+            "\n"
+            "8. Cookies change regularly, so re-export cookies.txt every once\n"
+            "   in a while (roughly every 24 hours).\n"
+        )
+        ttk.Label(win, text=steps, wraplength=540, justify='left',
+                  font=('Segoe UI', 10)).pack(pady=(0, 4))
+
+        ttk.Label(win, text=f"* Click \"Open Folder\" to open your {app_folder} folder - inside it you'll find the yt-dlp folder with all your music folders. *",
+                  wraplength=540, justify='left', font=('Segoe UI', 10, 'italic')).pack(pady=(0, 10))
+
+        btn_f = ttk.Frame(win)
+        btn_f.pack(pady=(0, 14))
+
+        ttk.Button(btn_f, text="Get Cookie Extension",
+                   command=self._open_cookie_ext).pack(side='left', padx=6)
+        ttk.Button(btn_f, text="Close", command=win.destroy).pack(side='left', padx=6)
+
     def _show_url_help(self):
         win = tk.Toplevel(self)
         win.title("Getting URLs")
@@ -799,7 +851,7 @@ class Application(tk.Tk):
         win.transient(self)
         win.grab_set()
 
-        folder_name = Path(self.folder_var.get()).name if self.folder_var.get() else "yt-dlp"
+        app_folder = SCRIPT_DIR.name
 
         ttk.Label(win, text="How to get playlist URLs:", font=('Segoe UI', 11, 'bold'),
                   wraplength=540).pack(pady=(14, 4))
@@ -812,13 +864,13 @@ class Application(tk.Tk):
             "(4.1 If the pasting fails, type \"allow pasting\", press Enter and paste again)\n"
             "5. Copy all returned URLs into a .txt file (one per line)\n"
             "6. After the last URL, press Enter to add a blank line at the end\n"
-            f"7. Save the file (preferably in your {folder_name} folder) as \"URL.txt\" and select it in the app\n"
+            f"7. Save the file (preferably in your {app_folder} folder) as \"URL.txt\" and select it in the app\n"
             "8. For future downloads, just edit the URL.txt file\n"
         )
         ttk.Label(win, text=steps, wraplength=540, justify='left',
                   font=('Segoe UI', 10)).pack(pady=(0, 4))
 
-        ttk.Label(win, text=f"* Click \"Open Folder\" to find the location of {folder_name} folder. *",
+        ttk.Label(win, text=f"* Click \"Open Folder\" to open your {app_folder} folder - inside it you'll find the yt-dlp folder with all your music folders. *",
                   wraplength=540, justify='left', font=('Segoe UI', 10, 'italic')).pack(pady=(0, 10))
 
         ttk.Label(win, text="Script to paste in Console:", font=('Segoe UI', 10, 'bold'),
@@ -863,6 +915,14 @@ class Application(tk.Tk):
                 "Single track mode only accepts a direct web URL.\n"
                 "If you want to download multiple tracks, switch to Playlist mode and select a .txt file with URLs.\n"
                 "Find out how to get playlist URLs by clicking the \"? How to get URLs\" button in the top right corner."
+            )
+            return
+
+        if mode == 'single' and 'music.youtube.' not in url_or_file:
+            messagebox.showerror(
+                "Unsupported URL",
+                "Only music.youtube links are supported.\n"
+                "This link does not contain 'music.youtube.' in its address."
             )
             return
 
@@ -917,11 +977,12 @@ class Application(tk.Tk):
             try:
                 with open(url_or_file, 'r', encoding='utf-8') as f:
                     lines = [l.strip() for l in f if l.strip()]
-                urls = [l for l in lines if 'list=PL' in l]
+                urls = [l for l in lines if 'list=PL' in l and 'music.youtube.' in l]
                 if not urls:
                     messagebox.showwarning(
                         "No URLs",
                         "No playlist URLs (containing 'list=PL') were found in the file.\n"
+                        "Make sure to only use links from music.youtube(.com) and not from youtube(.com)\n"
                         "\n"
                         "If you tried to download an ALBUM: albums are not supported,\n"
                         "and their links (list=OLAK...) are rejected.\n"
@@ -1021,15 +1082,11 @@ class Application(tk.Tk):
             self.status_var.set(text)
 
     def _open_folder(self):
-        folder = self.folder_var.get().strip()
-        if folder and Path(folder).exists():
-            webbrowser.open(str(Path(folder)))
+        install_root = self.config_data.get('install_root', str(SCRIPT_DIR))
+        if Path(install_root).exists():
+            webbrowser.open(install_root)
         else:
-            install_root = self.config_data.get('install_root', str(SCRIPT_DIR))
-            if Path(install_root).exists():
-                webbrowser.open(install_root)
-            else:
-                messagebox.showinfo("No folder", "No download folder exists yet. Download something first!")
+            messagebox.showinfo("No folder", "No install folder found.")
 
     def _view_log(self):
         log_path = Path(self.config_data.get('install_root', str(SCRIPT_DIR))) / 'download_log_file.txt'
