@@ -7,8 +7,6 @@ set "CR=powershell -NoProfile -Command Write-Host -ForegroundColor Red"
 set "CY=powershell -NoProfile -Command Write-Host -ForegroundColor Yellow"
 set "CB=powershell -NoProfile -Command $Host.UI.RawUI.ForegroundColor='Cyan'"
 
-set "PIP_MAX_ATTEMPTS=3"
-
 set "DEBUG_LOG=%TEMP%\ytdlp_install_debug.log"
 echo %DATE% %TIME% - Installer started > "%DEBUG_LOG%"
 
@@ -46,7 +44,7 @@ if %ERRORLEVEL% equ 0 (
     if !ERRORLEVEL! equ 0 goto :section2
 )
 
-:: Python not found or too old - install latest via winget
+:: Python not found or too old — install latest via winget
 :install_python
 %CY% '  Python not found (or below 3.12). Attempting auto-install...'
 
@@ -168,10 +166,10 @@ if !ERRORLEVEL! neq 0 (
 )
 echo   - youtube_downloader.py
 
-if exist "%SCRIPT_DIR%\YT-DLP_Premium.ico" (
-    copy /Y "%SCRIPT_DIR%\YT-DLP_Premium.ico" "%INSTALL_DIR%\" >nul 2>&1
+if exist "%SCRIPT_DIR%\yt-dlp premium.ico" (
+    copy /Y "%SCRIPT_DIR%\yt-dlp premium.ico" "%INSTALL_DIR%\" >nul 2>&1
     if !ERRORLEVEL! neq 0 %CY% '  WARNING: could not copy .ico file'
-    echo   - YT-DLP_Premium.ico
+    echo   - yt-dlp premium.ico
 )
 
 :: Copy rustypipe-botguard zip (shipped with installer, extracted in section 4)
@@ -287,44 +285,40 @@ echo %DATE% %TIME% - rustypipe section done >> "%DEBUG_LOG%"
 
 :: --- Python packages ---
 echo   Installing/upgrading Python packages...
-call :pip_retry "yt-dlp[default]" "yt-dlp" :ytdlp_fail "yt-dlp[default] with extras"
-goto :ytdlp_ok
+python -m pip install --upgrade pip --quiet 2>&1 | findstr /v "^$" >nul
 
-:ytdlp_fail
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  yt-dlp: FAILED'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  yt-dlp is required. It could not be installed.'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  Tip: Re-run this installer and enter the SAME'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  folder name. Files are simply re-copied, so'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  no new folder or bloat is created.'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  Or install it manually:'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  python -m pip install -U "yt-dlp[default]"'
-pause
-exit /b 1
+echo     Installing yt-dlp[default] with extras...
+python -m pip install --upgrade "yt-dlp[default]"
+if not errorlevel 1 (
+    %CG% '  yt-dlp: OK'
+) else (
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  yt-dlp: FAILED'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  yt-dlp is required. Install manually:'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  python -m pip install -U "yt-dlp[default]"'
+    pause
+    exit /b 1
+)
 
-:ytdlp_ok
-call :pip_retry "yt-dlp-get-pot-rustypipe" "yt-dlp-get-pot-rustypipe" :rustypipe_fail "yt-dlp-get-pot-rustypipe"
-goto :rustypipe_ok
+echo     Installing yt-dlp-get-pot-rustypipe...
+python -m pip install --upgrade yt-dlp-get-pot-rustypipe
+if not errorlevel 1 (
+    %CG% '  yt-dlp-get-pot-rustypipe: OK'
+) else (
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  yt-dlp-get-pot-rustypipe: FAILED'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  yt-dlp-get-pot-rustypipe is required for bot solving.'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  Install manually:'
+    :: SCRIPT ERROR STOP!!!!!!!!!
+    %CR% '  python -m pip install -U yt-dlp-get-pot-rustypipe'
+    pause
+    exit /b 1
+)
 
-:rustypipe_fail
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  yt-dlp-get-pot-rustypipe: FAILED'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  yt-dlp-get-pot-rustypipe is required for bot solving.'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  Install manually:'
-:: SCRIPT ERROR STOP!!!!!!!!!
-%CR% '  python -m pip install -U yt-dlp-get-pot-rustypipe'
-pause
-exit /b 1
-
-:rustypipe_ok
 %CB%
 
 :: Add Python Scripts directory to PATH (so yt-dlp is findable)
@@ -361,7 +355,10 @@ if not exist "!CONFIG_FILE!" (
 :: --- Create desktop shortcut ---
 echo   Creating desktop shortcut...
 set "SHORTCUT_PATH=%USERPROFILE%\Desktop\%INSTALL_NAME%.lnk"
-powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.TargetPath='pythonw.exe';$s.Arguments='%INSTALL_DIR%\youtube_downloader.py';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='YouTube Music Premium Downloader';$s.IconLocation='%INSTALL_DIR%\YT-DLP_Premium.ico';$s.Save()"
+powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.TargetPath='pythonw.exe';$s.Arguments='%INSTALL_DIR%\youtube_downloader.py';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='YouTube Music Premium Downloader';$s.Save()"
+if exist "%INSTALL_DIR%\yt-dlp premium.ico" (
+    powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.IconLocation='%INSTALL_DIR%\yt-dlp premium.ico';$s.Save()"
+)
 if exist "%SHORTCUT_PATH%" (
     %CG% '  Desktop shortcut created: %INSTALL_NAME%.lnk'
 ) else (
@@ -380,6 +377,7 @@ if !ERRORLEVEL! neq 0 (
 
 :: Clean up shipped zip files
 for %%F in ("%INSTALL_DIR%\rustypipe-botguard-*.zip") do del "%%F" >nul 2>&1
+if exist "%TEMP%\ffmpeg.zip" del "%TEMP%\ffmpeg.zip" >nul 2>&1
 
 echo.
 echo ===========================================================================
@@ -390,9 +388,6 @@ echo  Installed to: %INSTALL_DIR%
 echo.
 echo  Launch via desktop shortcut: %INSTALL_NAME%.lnk
 echo.
-echo.
-%CY% '  NOTE: The cookie extension is only required for'
-%CY% '  YouTube Music Premium subscription users!'
 echo.
 set /p "OPEN_COOKIE=Open cookie extension page in your browser now? (y/N): "
 if /i "!OPEN_COOKIE!"=="y" (
@@ -422,31 +417,3 @@ echo ===========================================================================
 echo.
 pause
 exit /b 0
-
-:pip_retry
-:: usage: call :pip_retry <package-spec> <display-label> <failure-label> <install-text>
-set "PR_SPEC=%~1"
-set "PR_LABEL=%~2"
-set "PR_FAIL=%~3"
-set "PR_INSTALL_TEXT=%~4"
-set /a PR_TRY=0
-:pip_retry_loop
-set /a PR_TRY+=1
-if !PR_TRY! gtr %PIP_MAX_ATTEMPTS% (
-    echo %DATE% %TIME% - %PR_LABEL% failed after %PIP_MAX_ATTEMPTS% attempts >> "%DEBUG_LOG%"
-    goto %PR_FAIL%
-)
-if !PR_TRY! equ 1 (
-    echo     Installing !PR_INSTALL_TEXT!...
-) else (
-    echo %DATE% %TIME% - %PR_LABEL% attempt !PR_TRY! failed, retrying >> "%DEBUG_LOG%"
-    %CY% '  !PR_LABEL! install failed. Retrying (attempt !PR_TRY!/%PIP_MAX_ATTEMPTS%)...'
-    timeout /t 5 /nobreak >nul
-)
-python -m pip install --upgrade "!PR_SPEC!"
-if not errorlevel 1 (
-    %CG% '  !PR_LABEL!: OK'
-    echo %DATE% %TIME% - %PR_LABEL% installed OK >> "%DEBUG_LOG%"
-    exit /b 0
-)
-goto :pip_retry_loop

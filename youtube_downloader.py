@@ -1,17 +1,3 @@
-# ============================================================================
-# YOUTUBE DOWNLOADER FOR WINDOWS
-# ============================================================================
-#
-# CONTENTS  (jump to any section)
-# ============================================================================
-#   SECTION 1: Imports and dependencies
-#   SECTION 2: Constants
-#   SECTION 3: URL sanitization
-#   SECTION 4: Config (config.json)
-#   SECTION 5: Download engine
-#   SECTION 6: GUI application
-#   SECTION 7: Entry point
-# ============================================================================
 
 """
 YouTube Downloader for Windows
@@ -28,19 +14,17 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # MODE SWITCHING:
 # [ ] Single track radio → switches mode, browse btn disabled, url entry cleared
 # [ ] Playlist radio → switches mode, browse btn enabled
-# [ ] Mode switching mid-download: radio buttons NOT disabled - potential bug
+# [ ] Mode switching mid-download: radio buttons NOT disabled — potential bug
 #
 # URL/FILE INPUT:
 # [ ] Single track + empty field → "Missing URL" popup
 # [ ] Single track + file path → error with "switch to Playlist mode" hint
 # [ ] Single track + web URL → accepted (both http/https)
-# [ ] Single track + URL not containing 'music.youtube.' → "Unsupported URL" popup
-# [ ] Single track + music.youtube.co.uk/.de etc. → accepted (normalized to .com)
 # [ ] Playlist + empty field → "Missing file" popup
 # [ ] Playlist + web URL → error with "? How to get URLs" hint
 # [ ] Playlist + non-existent file path → "File not found" popup
 # [ ] Playlist + existing .txt with valid playlist URLs → downloads
-# [ ] Playlist + existing .txt with 0 valid URLs → warning (album not supported + own non-private playlist instructions)
+# [ ] Playlist + existing .txt with 0 valid URLs → warning + "? How to get URLs"
 # [ ] Paste button → pastes clipboard content into URL field
 # [ ] Browse File button (playlist mode) → file dialog opens, path inserted
 # [ ] Browse File button (single mode) → disabled
@@ -97,7 +81,7 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # [ ] Progress bar → pulsing (indeterminate)
 # [ ] Status shows current track/progress
 # [ ] After completion: buttons restored, progress stops, status = "Ready."
-# [ ] Mode radio buttons NOT disabled - could switch mode mid-download (bug)
+# [ ] Mode radio buttons NOT disabled — could switch mode mid-download (bug)
 #
 # LOGS:
 # [ ] View Log button → opens log file
@@ -110,31 +94,16 @@ high-quality audio (256kbps AAC .m4a or AIFF fallback).
 # [ ] Copy Script → F12 script copied to clipboard
 # [ ] --remote-components ejs:github works on first run (downloads solver)
 #
-# MASTER TASK LIST (work through one at a time):
-# [x] install.bat: retry loop for yt-dlp[default] + rustypipe pip installs (retry only on failure, break on success)
-# [x] Help window step 7: save url.txt in the '<typed folder name>' app folder
-# [x] Help window note: point to the yt-dlp folder so the user sees all their music folders
-# [x] Open Folder button: always open the main app folder
-# [x] Single-track URL validation: reject hosts that don't contain 'music.youtube.'
-# [x] "How to use cookies" in-app button (where to save cookies.txt)
-#
 # ============================================================================
 # IMPLEMENTATION TODOs (priority order)
 # ============================================================================
 #
-# 1. [x] install.bat: retry loop for yt-dlp[default] + rustypipe pip installs (retry only on failure, break on success)
-# 2. [x] Help window step 7: save url.txt in the '<typed folder name>' app folder
-# 3. [x] Help window note: point to the yt-dlp folder so the user sees all their music folders
-# 4. [x] Open Folder button: always open the main app folder
-# 5. [x] Single-track URL validation: reject hosts that don't contain 'music.youtube.'
-# 6. [x] "How to use cookies" in-app button (where to save cookies.txt)
-
+# TODO: [P2] install.bat — verify ffmpeg installed into PATH correctly
+# TODO: [P3] install.bat — fix Python auto-install when not detected ⬅ IMPLEMENTED, needs VM testing
+# TODO: [P4] — create uninstall.bat
+#
 # ============================================================================
-# SECTION 1: IMPORTS AND DEPENDENCIES
-# ============================================================================
-# Standard-library modules only - the GUI itself needs no third-party packages.
-# yt-dlp, ffmpeg and rustypipe-botguard are separate executables.
-
+    
 import os
 import sys
 import re
@@ -153,22 +122,17 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
 # ============================================================================
-# SECTION 2: CONSTANTS
+# CONSTANTS
 # ============================================================================
 
-# --- App identity ---
 APP_NAME = "YouTube Downloader"
 VERSION = "1.0.0"
 
-# --- Cookie extension (Chrome Web Store) ---
-# Opened by the "Get Cookie Extension" buttons in the GUI.
 COOKIE_EXTENSION_URL = (
     "https://chromewebstore.google.com/detail/"
     "get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
 )
 
-# --- F12 Console script (copied to clipboard by "Copy Script") ---
-# Collects every watch?v= link currently loaded on a YouTube Music playlist page.
 F12_SCRIPT = """const allLinks = Array.from(document.querySelectorAll('a'));
 const watchLinks = allLinks
   .map(a => a.href)
@@ -178,13 +142,8 @@ console.log(uniqueLinks.join('\\n'));"""
 
 
 # ============================================================================
-# SECTION 3: URL SANITIZATION  (ported from youtube_downloader.zsh)
+# URL SANITIZATION  (ported from youtube_downloader.zsh)
 # ============================================================================
-# Normalizes a track URL before downloading:
-#   - strips the &list= fragment from single-track links
-#   - converts www.youtube.com / youtube.com into music.youtube.com
-#   - converts country domains (music.youtube.co.uk, music.youtube.de, ...)
-#     into plain music.youtube.com
 
 def sanitize_url(url):
     url = re.sub(r'&list=[^&]*', '', url)
@@ -199,14 +158,9 @@ def sanitize_url(url):
     return url
 
 # ============================================================================
-# SECTION 4: CONFIG  (config.json)
+# CONFIG
 # ============================================================================
-# Settings are stored in a config.json file in the installed app folder:
-#   install_root     - app folder that contains the yt-dlp subfolder
-#   cookie_file      - full path to cookies.txt (YouTube Music Premium only)
-#   rustypipe_bg_bin - full path to rustypipe-botguard.exe (bot solver)
 
-# Folder this script is running from (the installed app folder)
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
 def load_config():
@@ -233,21 +187,12 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2)
 
 # ============================================================================
-# SECTION 5: DOWNLOAD ENGINE
+# DOWNLOAD ENGINE
 # ============================================================================
-# Runs yt-dlp in a background thread and reports progress to the GUI through
-# a thread-safe queue.
-#
-# Per track, two download strategies are tried:
-#   1. HQ path   - cookies present: yt-dlp fetches format 141 (.m4a, 256kbps)
-#                  with metadata and embedded cover art.
-#   2. AIFF path - no cookies (or HQ failed): WebM -> WAV -> AIFF via ffmpeg,
-#                  with cover art and ID3v2 tags.
 
 class DownloadEngine:
     """Runs yt-dlp downloads, communicates with GUI via a queue."""
 
-    # --- Setup ---
     def __init__(self, config, status_queue):
         self.config = config
         self.queue = status_queue
@@ -262,7 +207,6 @@ class DownloadEngine:
         self.rustypipe_bin = Path(config.get('rustypipe_bg_bin', root / 'rustypipe-botguard.exe'))
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Cancellation (kills the running process tree + ffmpeg) ---
     def cancel(self):
         self._cancel_event.set()
         if self._ffmpeg_process and self._ffmpeg_process.poll() is None:
@@ -291,7 +235,6 @@ class DownloadEngine:
     def is_cancelled(self):
         return self._cancel_event.is_set()
 
-    # --- Logging and GUI messaging helpers ---
     def _log(self, msg):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         with open(self.log_file_path, 'a', encoding='utf-8') as f:
@@ -300,7 +243,6 @@ class DownloadEngine:
     def _send(self, msg_type, message, **kw):
         self.queue.put({'type': msg_type, 'message': message, **kw})
 
-    # --- Subprocess helpers ---
     def _make_startupinfo(self):
         """Return STARTUPINFO that hides the console window (Windows only)."""
         if sys.platform != 'win32':
@@ -358,9 +300,8 @@ class DownloadEngine:
                 return c
         return 'ffmpeg'
 
-    # --- Core download logic for a single track ---
     def _download_track(self, url, hq_dir, fallback_dir):
-        # Resolve the track title first (used for logging and the AIFF filename)
+        # Get title
         try:
             si = self._make_startupinfo()
             r = subprocess.run(
@@ -377,12 +318,11 @@ class DownloadEngine:
         self._log(f"[Task] Downloading: {title}")
         self._send('track', f"Downloading: {title}")
 
-        # Build the extractor args: node JS runtime + rustypipe bot solver
         extractor_args = "youtube:player_client=mweb;formats=missing_pot"
         if self.rustypipe_bin and self.rustypipe_bin.exists():
             extractor_args += f";rustypipe_bg_bin={self.rustypipe_bin}"
 
-        # --- HQ path (format 141) - only attempted when a valid cookies.txt exists ---
+        # Try HQ (format 141)
         if self.cookie_file.exists() and self.cookie_file.stat().st_size > 0:
             self._log("[Task] Cookies detected. Attempting HQ (141) download.")
             self._send('progress', "Attempting HQ download (format 141)...")
@@ -408,7 +348,7 @@ class DownloadEngine:
         else:
             self._log("[!] No valid cookies. Skipping HQ attempt.")
 
-        # --- AIFF fallback path: WebM -> WAV -> AIFF via ffmpeg ---
+        # Fallback: WebM -> WAV -> AIFF
         if self.is_cancelled:
             return False, 'cancelled', title
 
@@ -490,7 +430,6 @@ class DownloadEngine:
         self._log(f"[Success] Downloaded and converted {title} to AIFF.")
         return True, 'aiff', title
 
-    # --- Cleanup: remove empty HQ / fallback / target folders ---
     def _cleanup(self, target, hq_dir, fallback_dir):
         for d in [hq_dir, fallback_dir, target]:
             p = Path(d)
@@ -498,7 +437,6 @@ class DownloadEngine:
                 shutil.rmtree(p, ignore_errors=True)
                 self._log(f"[Cleanup] Removed empty: {p}")
 
-    # --- Public entry points (called from background threads) ---
     def download_single(self, url, target_path):
         target = Path(target_path)
         hq = target / "[HQ-256k]"
@@ -560,7 +498,6 @@ class DownloadEngine:
             else:
                 failed += 1
 
-            # Friendly delay between tracks (9-16s) to avoid rate limiting
             if i < total - 1 and not self.is_cancelled:
                 delay = random.randint(9, 16)
                 self._log(f"[Info] Waiting {delay}s...")
@@ -575,16 +512,13 @@ class DownloadEngine:
             self._send('complete', f"Done! {success} ok, {failed} failed.")
 
 # ============================================================================
-# SECTION 6: GUI APPLICATION
+# GUI APPLICATION
 # ============================================================================
-# Tkinter window. Owns every widget (mode radios, URL/folder/cookies entries,
-# progress bar, action buttons), validates user input before a download
-# starts, and pops up the help / folder / log windows.
 
 class Application(tk.Tk):
+    PAD = {'padx': 10, 'pady': 4}
     PAD_LR = {'padx': (12, 12)}
 
-    # --- Setup ---
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME}  {VERSION}")
@@ -604,7 +538,7 @@ class Application(tk.Tk):
         self._load_icon()
 
     def _load_icon(self):
-        icon_path = Path(__file__).parent / "YT-DLP_Premium.ico"
+        icon_path = Path(__file__).parent / "yt-dlp premium.ico"
         if icon_path.exists():
             try:
                 self.iconbitmap(str(icon_path))
@@ -623,8 +557,8 @@ class Application(tk.Tk):
         style.configure('Action.TButton', font=('Segoe UI', 12, 'bold'))
         style.configure('Cancel.TButton', font=('Segoe UI', 12))
         style.configure('Small.TButton', font=('Segoe UI', 9))
+        style.configure('Red.Horizontal.TProgressbar', foreground='#1a73e8', background='#1a73e8')
 
-    # --- UI construction ---
     def _build_ui(self):
         # --- Header ---
         header = ttk.Frame(self)
@@ -649,8 +583,6 @@ class Application(tk.Tk):
                         value='playlist', command=self._on_mode_change).pack(side='left')
         ttk.Button(mode_f, text="? How to get URLs", style='Small.TButton',
                    command=self._show_url_help).pack(side='right')
-        ttk.Button(mode_f, text="? How to use cookies", style='Small.TButton',
-                   command=self._show_cookie_help).pack(side='right', padx=(0, 4))
 
         # --- URL / File input ---
         url_f = ttk.LabelFrame(body, text="URL / File", padding=8)
@@ -680,7 +612,7 @@ class Application(tk.Tk):
                    command=self._create_folder).pack(side='right', padx=(0, 4))
 
         # --- Cookies ---
-        cooks_f = ttk.LabelFrame(body, text="Cookies (optional - required for HQ 256kbps)",
+        cooks_f = ttk.LabelFrame(body, text="Cookies (optional – required for HQ 256kbps)",
                                  padding=8)
         cooks_f.pack(fill='x', pady=(0, 8))
 
@@ -729,9 +661,6 @@ class Application(tk.Tk):
         ttk.Button(action_f, text="View Log", style='Small.TButton',
                    command=self._view_log).pack(side='right', padx=(0, 4))
 
-        ttk.Label(body, text="Only music.youtube.com links are supported.",
-                  font=('Segoe UI', 8), foreground='#888').pack(pady=(0, 2))
-
         # Set initial mode
         self._on_mode_change()
         self._update_folder_browse_state()
@@ -739,7 +668,6 @@ class Application(tk.Tk):
         # Start polling queue
         self._poll_queue()
 
-    # --- Mode / state helpers ---
     def _on_mode_change(self):
         mode = self.mode_var.get()
         self.url_entry.configure(state='normal')
@@ -758,7 +686,6 @@ class Application(tk.Tk):
         )
         self.browse_folder_btn.configure(state='normal' if has_sub else 'disabled')
 
-    # --- Input helpers ---
     def _paste_url(self):
         try:
             clip = self.clipboard_get()
@@ -835,7 +762,6 @@ class Application(tk.Tk):
         ttk.Button(btn_f, text="Create", command=confirm).pack(side='right', padx=(8, 0))
         ttk.Button(btn_f, text="Cancel", command=dialog.destroy).pack(side='right')
 
-    # --- Cookies ---
     def _browse_cookies(self):
         path = filedialog.askopenfilename(
             title="Select cookies.txt",
@@ -849,57 +775,6 @@ class Application(tk.Tk):
     def _open_cookie_ext(self):
         webbrowser.open(COOKIE_EXTENSION_URL)
 
-    def _show_cookie_help(self):
-        win = tk.Toplevel(self)
-        win.title("Using Cookies")
-        win.geometry("580x560")
-        win.resizable(False, False)
-        win.transient(self)
-        win.grab_set()
-
-        app_folder = SCRIPT_DIR.name
-
-        ttk.Label(win, text="How to use cookies:", font=('Segoe UI', 11, 'bold'),
-                  wraplength=540).pack(pady=(14, 4))
-
-        steps = (
-            "1. Cookies are only required if you have a YouTube Music Premium\n"
-            "   subscription and want to access the best quality\n"
-            "   (HQ 256kbps 141 format). Without cookies, downloads fall back\n"
-            "   to a lower quality (AIFF).\n"
-            "\n"
-            "2. If you haven't installed the cookie extension yet, click the\n"
-            "   \"Get Cookie Extension\" button below. It works with Chrome and Firefox.\n"
-            "\n"
-            "3. When installed, log into your YouTube account in your browser\n"
-            "   and click the extension icon.\n"
-            "\n"
-            "4. Click \"Download all cookies\" to export the file.\n"
-            "\n"
-            f"5. Save it as cookies.txt - preferably in your {app_folder} folder.\n"
-            "\n"
-            "6. Make sure the path in the Cookies input box above points to\n"
-            "   your cookies.txt file.\n"
-            "\n"
-            "7. Download your track(s) - the HQ version will now be used.\n"
-            "\n"
-            "8. Cookies change regularly, so re-export cookies.txt every once\n"
-            "   in a while (roughly every 24 hours).\n"
-        )
-        ttk.Label(win, text=steps, wraplength=540, justify='left',
-                  font=('Segoe UI', 10)).pack(pady=(0, 4))
-
-        ttk.Label(win, text=f"* Click \"Open Folder\" to open your {app_folder} folder - inside it you'll find the yt-dlp folder with all your music folders. *",
-                  wraplength=540, justify='left', font=('Segoe UI', 10, 'italic')).pack(pady=(0, 10))
-
-        btn_f = ttk.Frame(win)
-        btn_f.pack(pady=(0, 14))
-
-        ttk.Button(btn_f, text="Get Cookie Extension",
-                   command=self._open_cookie_ext).pack(side='left', padx=6)
-        ttk.Button(btn_f, text="Close", command=win.destroy).pack(side='left', padx=6)
-
-    # --- Help windows ---
     def _show_url_help(self):
         win = tk.Toplevel(self)
         win.title("Getting URLs")
@@ -908,7 +783,7 @@ class Application(tk.Tk):
         win.transient(self)
         win.grab_set()
 
-        app_folder = SCRIPT_DIR.name
+        folder_name = Path(self.folder_var.get()).name if self.folder_var.get() else "yt-dlp"
 
         ttk.Label(win, text="How to get playlist URLs:", font=('Segoe UI', 11, 'bold'),
                   wraplength=540).pack(pady=(14, 4))
@@ -921,13 +796,13 @@ class Application(tk.Tk):
             "(4.1 If the pasting fails, type \"allow pasting\", press Enter and paste again)\n"
             "5. Copy all returned URLs into a .txt file (one per line)\n"
             "6. After the last URL, press Enter to add a blank line at the end\n"
-            f"7. Save the file (preferably in your {app_folder} folder) as \"URL.txt\" and select it in the app\n"
+            f"7. Save the file (preferably in your {folder_name} folder) as \"URL.txt\" and select it in the app\n"
             "8. For future downloads, just edit the URL.txt file\n"
         )
         ttk.Label(win, text=steps, wraplength=540, justify='left',
                   font=('Segoe UI', 10)).pack(pady=(0, 4))
 
-        ttk.Label(win, text=f"* Click \"Open Folder\" to open your {app_folder} folder - inside it you'll find the yt-dlp folder with all your music folders. *",
+        ttk.Label(win, text=f"* Click \"Open Folder\" to find the location of {folder_name} folder. *",
                   wraplength=540, justify='left', font=('Segoe UI', 10, 'italic')).pack(pady=(0, 10))
 
         ttk.Label(win, text="Script to paste in Console:", font=('Segoe UI', 10, 'bold'),
@@ -957,13 +832,11 @@ class Application(tk.Tk):
         ttk.Button(btn_f, text="Copy Script", command=_copy).pack(side='left', padx=6)
         ttk.Button(btn_f, text="Close", command=win.destroy).pack(side='left', padx=6)
 
-    # --- Download flow ---
     def _start_download(self):
         mode = self.mode_var.get()
         url_or_file = self.url_var.get().strip()
         folder_path = self.folder_var.get().strip()
 
-        # --- Validate input: single track ---
         if mode == 'single' and not url_or_file:
             messagebox.showwarning("Missing URL", "Please enter a YouTube Music URL.")
             return
@@ -977,15 +850,6 @@ class Application(tk.Tk):
             )
             return
 
-        if mode == 'single' and 'music.youtube.' not in url_or_file:
-            messagebox.showerror(
-                "Unsupported URL",
-                "Only music.youtube links are supported.\n"
-                "This link does not contain 'music.youtube.' in its address."
-            )
-            return
-
-        # --- Validate input: playlist file ---
         if mode == 'playlist':
             if not url_or_file:
                 messagebox.showwarning("Missing file", "Please select a .txt file.")
@@ -1002,7 +866,6 @@ class Application(tk.Tk):
                 messagebox.showerror("File not found", f"File does not exist:\n{url_or_file}")
                 return
 
-        # --- Validate save location ---
         if not folder_path:
             messagebox.showwarning("Missing folder", "Please select a save location.")
             return
@@ -1020,7 +883,7 @@ class Application(tk.Tk):
             self.config_data['cookie_file'] = self.cookies_var.get().strip()
             save_config(self.config_data)
 
-        # --- Set busy state ---
+        # Set busy state
         self._set_busy(True)
         self.status_var.set("Starting download...")
         self.progress_var.set(0)
@@ -1035,28 +898,17 @@ class Application(tk.Tk):
                 daemon=True
             )
         else:
-            # Read the playlist file and keep only valid music.youtube playlist links
             try:
                 with open(url_or_file, 'r', encoding='utf-8') as f:
                     lines = [l.strip() for l in f if l.strip()]
-                urls = [l for l in lines if 'list=PL' in l and 'music.youtube.' in l]
+                urls = [l for l in lines if 'list=PL' in l]
                 if not urls:
                     messagebox.showwarning(
                         "No URLs",
-                        "No playlist URLs (containing 'list=PL') were found in the file.\n"
-                        "Make sure to only use links from music.youtube(.com) and not from youtube(.com)\n"
-                        "\n"
-                        "If you tried to download an ALBUM: albums are not supported,\n"
-                        "and their links (list=OLAK...) are rejected.\n"
-                        "\n"
-                        "Instead, do this:\n"
-                        "  - Create your OWN playlist in YouTube Music\n"
-                        "  - Make sure it is NOT set to private\n"
-                        "  - Copy the links from INSIDE your playlist\n"
-                        "\n"
-                        "See the \"? How to get URLs\" guide for details."
+                        "No playlist URLs (containing 'list=PL') found in the file.\n"
+                        "Make sure to follow the \"? How to get URLs\" guide."
                     )
-                    engine._log("[ERROR] NO VALID URLS COULD BE DETECTED. If you tried to download an ALBUM: albums are not supported. Create your own NON-private playlist and copy the links from inside it.")
+                    engine._log("[ERROR] NO VALID URLS COULD BE DETECTED! MAKE SURE TO FOLLOW \"? How to get URLs\".")
                     self._set_busy(False)
                     self.status_var.set("Ready.")
                     self.progress_var.set(0)
@@ -1100,7 +952,6 @@ class Application(tk.Tk):
             self.progress_bar.stop()
             self.progress_bar.configure(mode='determinate')
 
-    # --- Status queue ---
     def _poll_queue(self):
         try:
             while True:
@@ -1111,8 +962,6 @@ class Application(tk.Tk):
         self.after(100, self._poll_queue)
 
     def _handle_status(self, msg):
-        # Each message type updates the UI; 'complete'/'cancelled' also restore
-        # the buttons, and 'error' pops a message box.
         t = msg.get('type', '')
         text = msg.get('message', '')
 
@@ -1146,13 +995,16 @@ class Application(tk.Tk):
         elif t == 'info':
             self.status_var.set(text)
 
-    # --- Utility actions ---
     def _open_folder(self):
-        install_root = self.config_data.get('install_root', str(SCRIPT_DIR))
-        if Path(install_root).exists():
-            webbrowser.open(install_root)
+        folder = self.folder_var.get().strip()
+        if folder and Path(folder).exists():
+            webbrowser.open(str(Path(folder)))
         else:
-            messagebox.showinfo("No folder", "No install folder found.")
+            install_root = self.config_data.get('install_root', str(SCRIPT_DIR))
+            if Path(install_root).exists():
+                webbrowser.open(install_root)
+            else:
+                messagebox.showinfo("No folder", "No download folder exists yet. Download something first!")
 
     def _view_log(self):
         log_path = Path(self.config_data.get('install_root', str(SCRIPT_DIR))) / 'download_log_file.txt'
@@ -1182,7 +1034,6 @@ class Application(tk.Tk):
             txt.insert('1.0', content)
             txt.configure(state='disabled')
 
-    # --- Window close ---
     def _on_close(self):
         if self.current_engine and self.download_thread and self.download_thread.is_alive():
             if messagebox.askyesno("Quit?", "A download is in progress. Cancel and quit?"):
@@ -1193,10 +1044,8 @@ class Application(tk.Tk):
 
 
 # ============================================================================
-# SECTION 7: ENTRY POINT
+# ENTRY POINT
 # ============================================================================
-# Only runs when this file is executed directly (double-click / shortcut),
-# not when it is imported.
 
 def main():
     app = Application()
